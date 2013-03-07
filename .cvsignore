@@ -1,0 +1,6 @@
+dasm
+dummy
+z80emu
+*.bin
+*.lst
+*.p
