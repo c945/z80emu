@@ -4,7 +4,7 @@ CFLAGS  = -O2 -DLSB_FIRST -DDEBUG -I/usr/include/ncurses
 
 .SUFFIXES:	.asm .hex .bin
 
-ALL:	z80emu test1.bin pcwpatb.bin dummy
+ALL:	z80emu isZ80.bin pcwpatb.bin dummy
 
 Z80.o:	Z80.c Z80.h Codes.h CodesED.h CodesCB.h CodesXX.h Tables.h CodesXCB.h
 
