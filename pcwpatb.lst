@@ -1,0 +1,2297 @@
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 1 - 6/12/2014 10:42:54
+
+
+       1/       0 :                     ; PCWPATB.ASM
+       2/       0 :                     ;
+       3/       0 :                     ; SOFTWARE: ED, MAC, SID
+       4/       0 :                     ; HARDWARE: Amstrad PCW8256, CP/M Plus v1.4
+       5/       0 :                     ; (The only hardware specific part is the
+       6/       0 :                     ;  SID restart point, at label SID:)
+       7/       0 :                     ;
+       8/       0 :                     ; Palo Alto Tiny BASIC Interpreter Version 3.0
+       9/       0 :                     ;
+      10/       0 :                     ; See "Dr. DOBB's Journal" Vol.1 No.1 to 5.
+      11/       0 :                     ; My advice is to buy the Volume 1 of DDJ:
+      12/       0 :                     ; M&T Publishing Inc.
+      13/       0 :                     ; 501 Galveston Drive
+      14/       0 :                     ; REDWOOD CITY
+      15/       0 :                     ; CA 94063
+      16/       0 :                     ; USA
+      17/       0 :                     ; ---
+      18/       0 :                     ;
+      19/       0 :                     ; CP/M port by Emmanuel ROCHE in mid-JUNE 1990!
+      20/       0 :                     ; (Better late than never...)
+      21/       0 :                     ;
+      22/       0 :                     ; WARNING: run ONLY under SID.
+      23/       0 :                     ;
+      24/       0 :                     ;Usage: A>SID PCWPATB.HEX PCWPATB.SYM
+      25/       0 :                     ; CP/M 3 SID - Version 3.0
+      26/       0 :                     ; SYMBOLS
+      27/       0 :                     ; NEXT MSZE  PC  END
+      28/       0 :                     ; C834 C834 0100 D4C5
+      29/       0 :                     ; #G100
+      30/       0 :                     ;
+      31/       0 :                     ; PALO ALTO TINY BASIC V3.0
+      32/       0 :                     ; OK
+      33/       0 :                     ; >
+      34/       0 :                     ;
+      35/       0 :                     ;Type Palo Alto Tiny BASIC commands in upper cases.
+      36/       0 :                     ;
+      37/       0 :                     ; >SID<CR> will return you to SID (added by ROCHE).
+      38/       0 :                     ;
+      39/       0 :                     ;-------------------------------
+      40/       0 :                     ;
+      41/       0 :                     	CPU	8080
+      42/       0 :                     
+      43/       0 : =DH                 CR	EQU	0DH
+      44/       0 : =AH                 LF	EQU	0AH
+      45/       0 :                     ;
+      46/       0 :                     ;-------------------------------
+      47/       0 :                     ;
+      48/       0 :                     tstc MACRO OP1,OP2
+      49/       0 :                     	CALL	TSTCH
+      50/       0 :                     	DB 	OP1
+      51/       0 :                      	DB 	(OP2 - $ - 1) & 0FFH
+      52/       0 :                      	ENDM
+      53/       0 :                     ;
+      54/       0 :                     ;-------------------------------
+      55/       0 :                     ;
+      56/       0 :                     item MACRO OP1,OP2
+      57/       0 :                     	IF OP1 == ""
+      58/       0 :                       		DB	OP2 >> 8 | 080H
+      59/       0 :                       		DB  	OP2 & 0FFH
+      60/       0 :                      	ELSE
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 2 - 6/12/2014 10:42:54
+
+
+      61/       0 :                       		DB	OP1
+      62/       0 :                       		DB	OP2 >> 8 | 080H
+      63/       0 :                       		DB  	OP2 & 0FFH
+      64/       0 :                      	ENDIF
+      65/       0 :                     	ENDM
+      66/       0 :                     ;
+      67/       0 :                     ;The following is the original code (slighty edited for CP/M).
+      68/       0 :                     ;---------------------------------------------------------------
+      69/       0 :                     ;
+      70/       0 :                     ;        P A T B
+      71/       0 :                     ;    PALO ALTO TINY BASIC INTERPRETER
+      72/       0 :                     ;       VERSION 3.0
+      73/       0 :                     ;     FOR 8080 SYSTEM
+      74/       0 :                     ;       LI-CHEN WANG
+      75/       0 :                     ;      26 APRIL, 1977
+      76/       0 :                     ;
+      77/       0 :                     ;---------------------------------------------------------------
+      78/       0 :                     ;
+      79/       0 :                     ;  *** MEMORY USAGE ***
+      80/       0 :                     ;
+      81/       0 :                     ;  0080-01FF are for variables, input line and stack
+      82/       0 :                     ;  2000-3FFF are for Tiny BASIC text & array
+      83/       0 :                     ;  F000-F7FF are for PATB code
+      84/       0 :                     ;
+      85/       0 :                     ;ROCHE> I have added an offset of 1000H, and set BOTROM at
+      86/       0 :                     ;ROCHE> C000H, in order to be under PCWPATB.SYM under SID.
+      87/       0 :                     ;RUNNER> BOTROM > 7FFFH
+      88/       0 :                     ;
+      89/       0 : =1000H              BOTROM 	EQU 	01000H  	;BOTtom Read Only Memory
+      90/       0 : =2000H              BOTSCR 	EQU 	02000H  	;BOTtom SCRatch
+      91/       0 : =2100H              TOPSCR 	EQU 	02100H  	;TOP SCRatch
+      92/       0 : =2100H              BOTRAM 	EQU 	02100H  	;BOTtom Random Access Memory
+      93/       0 : =2FFFH              DFTLMT 	EQU 	02FFFH  	;DeFaulT LiMiT
+      94/       0 :                     
+      95/       0 :                     ;
+      96/       0 :                     ;---------------------------------------------------------------
+      97/       0 :                     ;
+      98/       0 :                     ; *** INITIALIZE
+      99/       0 :                     ;
+     100/       0 :                      	ORG 	0  		;ROCHE>
+     101/       0 :                     ;
+     102/       0 : C3 00 10             	JMP 	INIT  		;ROCHE>
+     103/       3 :                     ;
+     104/    1000 :                      	ORG 	BOTROM
+     105/    1000 :                     ;
+     106/    1000 : 31 00 21            INIT: 	LXI 	SP, STACK
+     107/    1003 : CD A3 17             	CALL 	CRLF
+     108/    1006 : 21 00 20             	LXI 	H, KEYWRD 	;at power-on, KEYWRD is
+     109/    1009 : 3E C3                	MVI 	A, 0C3H  	;probably not 0C3H
+     110/    100B : BE                   	CMP 	M
+     111/    100C : CA 26 10             	JZ 	TELL  		;it is 0C3H, continue
+     112/    100F : 77                   	MOV 	M, A  		;no, set it to 0C3H
+     113/    1010 : 21 FF 2F             	LXI 	H, DFTLMT 	;and set default value
+     114/    1013 : 22 01 20             	SHLD 	TXTLMT  	;in 'TXTLMT'
+     115/    1016 :                     # 	MVI 	A, HIGH BOTROM 	;initialize RANPNT
+     116/    1016 : 3E 10               	MVI	A, (BOTROM >> 8)
+     117/    1018 : 32 48 20             	STA 	RANPNT+1
+     118/    101B : 21 06 21            PURGE:	LXI H, 	TEXT+4 	;purge text area
+     119/    101E : 22 00 21             	SHLD 	TXTUNF
+     120/    1021 : 26 FF                	MVI 	H, 0FFH
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 3 - 6/12/2014 10:42:54
+
+
+     121/    1023 : 22 02 21             	SHLD 	TEXT
+     122/    1026 : 11 30 10            TELL: 	LXI 	D, MSG  	;tell user
+     123/    1029 : CD 70 16             	CALL 	PRTSTG  	;*************************
+     124/    102C : C3 5E 10             	JMP 	RSTART  	;***** jmp user init *****
+     125/    102F :                         				;*************************
+     126/    102F :                     ;-------------------------------
+     127/    102F : F7                  SID: 	RST 6  			;ROCHE> because Amstrad PCW
+     128/    1030 :                         				;uses Mode 1 Interrupts
+     129/    1030 :                     ;-------------------------------
+     130/    1030 : 50 41 4C 4F 20      MSG: 	DB 	"PALO "
+     131/    1035 : 41 4C 54 4F 20       	DB 	"ALTO "
+     132/    103A : 54 49 4E 59 20       	DB 	"TINY "
+     133/    103F : 42 41 53 49 43       	DB 	"BASIC"
+     134/    1044 : 20 56 33 2E 30       	DB 	" V3.0"
+     135/    1049 : 0D                   	DB 	CR
+     136/    104A :                     ;
+     137/    104A : 4F 4B               OK: 	DB 	"OK"
+     138/    104C : 0D                   	DB 	CR
+     139/    104D :                     ;
+     140/    104D : 57 48 41 54 3F      WHAT: 	DB 	"WHAT?"
+     141/    1052 : 0D                   	DB 	CR
+     142/    1053 :                     ;
+     143/    1053 : 48 4F 57 3F         HOW: 	DB 	"HOW?"
+     144/    1057 : 0D                   	DB 	CR
+     145/    1058 :                     ;
+     146/    1058 : 53 4F 52 52 59      SORRY:	DB 	"SORRY"
+     147/    105D : 0D                   	DB 	CR
+     148/    105E :                     ;
+     149/    105E :                     ;---------------------------------------------------------------
+     150/    105E :                     ;
+     151/    105E :                     ; *** DIRECT COMMAND / TEXT COLLECTER ***
+     152/    105E :                     ;
+     153/    105E :                     ; PATB prints out "OK(CR)", and then it prompts ">" and reads
+     154/    105E :                     ; a line. If the line starts with a non-zero number, this
+     155/    105E :                     ; number is the line number. The line number (in 16 bit
+     156/    105E :                     ; binary) and the rest of the line (including CR) is stored
+     157/    105E :                     ; in the memory. If a line with the same line number is already
+     158/    105E :                     ; there, it is replaced by the new one. If the rest of the line
+     159/    105E :                     ; consists of a CR only, it is not stored and any existing line
+     160/    105E :                     ; with the same line number is deleted.
+     161/    105E :                     ;
+     162/    105E :                     ; After a line is inserted, replaced, or deleted, the program
+     163/    105E :                     ; loops back and ask for another line. This loop will be
+     164/    105E :                     ; terminated when it reads a line with zero or no line number;
+     165/    105E :                     ; and control is transfered to "DIRECT".
+     166/    105E :                     ;
+     167/    105E :                     ; Tiny BASIC program save area starts at the memory location
+     168/    105E :                     ; labeled "TEXT". The end of text is marked by 2 bytes XX FF.
+     169/    105E :                     ; Following these are 2 bytes reserved for the array element
+     170/    105E :                     ; @(0). The content of location labeled "TXTUNF" points to one
+     171/    105E :                     ; after @(0).
+     172/    105E :                     ;
+     173/    105E :                     ; The memory location "CURRNT" points to the line number that
+     174/    105E :                     ; is currently being interpreted. While we are in this loop
+     175/    105E :                     ; or while we are interpreting a direct command (see next
+     176/    105E :                     ; section), "CURRNT" should point to a 0.
+     177/    105E :                     ;
+     178/    105E :                     RSTART:
+     179/    105E : 31 00 21            	LXI 	SP, STACK 	;re-initialize stack
+     180/    1061 : 21 68 10             	LXI 	H, ST1+1 	;literal 0
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 4 - 6/12/2014 10:42:54
+
+
+     181/    1064 : 22 37 20             	SHLD 	CURRNT  	;CURRNT->line # = 0
+     182/    1067 : 21 00 00            ST1: 	LXI 	H, 0
+     183/    106A : 22 3D 20             	SHLD 	LOPVAR
+     184/    106D : 22 39 20             	SHLD 	STKGOS
+     185/    1070 : 11 4A 10             	LXI 	D, OK  		;DE->string
+     186/    1073 : CD 70 16             	CALL 	PRTSTG  	;print string until CR
+     187/    1076 : 3E 3E               ST2: 	MVI 	A, '>'  		;prompt '>' and
+     188/    1078 : CD AB 17             	CALL 	GETLN  		;read a line
+     189/    107B : D5                   	PUSH 	D  		;DE->end of line
+     190/    107C : 11 4A 20             	LXI 	D, BUFFER 	;DE->beginning of line
+     191/    107F : CD DA 15             	CALL 	TSTNUM  	;test if it is a number
+     192/    1082 : CD 2D 15             	CALL 	IGNBLK
+     193/    1085 : 7C                   	MOV 	A, H  		;HL=value of the # or
+     194/    1086 : B5                   	ORA 	L  		;0 if no # was found
+     195/    1087 : C1                   	POP 	B  		;BC->end of line
+     196/    1088 : CA D7 10             	JZ 	DIRECT
+     197/    108B : 1B                   	DCX 	D  		;backup DE and save
+     198/    108C : 7C                   	MOV 	A, H  		;value of line # there
+     199/    108D : 12                   	STAX 	D
+     200/    108E : 1B                   	DCX 	D
+     201/    108F : 7D                   	MOV 	A, L
+     202/    1090 : 12                   	STAX 	D
+     203/    1091 : C5                   	PUSH 	B  		;BC, DE -> begin, end
+     204/    1092 : D5                   	PUSH 	D
+     205/    1093 : 79                   	MOV 	A, C
+     206/    1094 : 93                   	SUB 	E
+     207/    1095 : F5                   	PUSH 	PSW  		;A=# of bytes in line
+     208/    1096 : CD 6F 15             	CALL 	FNDLN  		;find this line in save
+     209/    1099 : D5                   	PUSH 	D  		;area, DE->save area
+     210/    109A : C2 AD 10             	JNZ 	ST3  		;NZ=not found, insert
+     211/    109D : D5                   	PUSH 	D  		;Z=found, delete it
+     212/    109E : CD 88 15             	CALL 	FNDNXT  	;set DE->next line
+     213/    10A1 : C1                   	POP 	B  		;BC->line to be deleted
+     214/    10A2 : 2A 00 21             	LHLD 	TXTUNF  	;HL->unfilled save area
+     215/    10A5 : CD 0B 16             	CALL 	MVUP  		;move up to delete
+     216/    10A8 : 60                   	MOV 	H, B  		;TXTUNF->unfilled area
+     217/    10A9 : 69                   	MOV 	L, C
+     218/    10AA : 22 00 21             	SHLD 	TXTUNF  	;update
+     219/    10AD : C1                  ST3: 	POP 	B  		;get ready to insert
+     220/    10AE : 2A 00 21             	LHLD 	TXTUNF  	;but first check if
+     221/    10B1 : F1                   	POP 	PSW  		;the length of new line
+     222/    10B2 : E5                   	PUSH 	H  		;is 3 (line # and CR)
+     223/    10B3 : FE 03                	CPI 	3  		;then do not insert
+     224/    10B5 : CA 5E 10             	JZ 	RSTART  	;must clear the stack
+     225/    10B8 : 85                   	ADD 	L  		;compute new TXTUNF
+     226/    10B9 : 5F                   	MOV 	E, A
+     227/    10BA : 3E 00                	MVI 	A, 0
+     228/    10BC : 8C                   	ADC 	H
+     229/    10BD : 57                   	MOV 	D, A  		;DE->new unfilled area
+     230/    10BE : 2A 01 20             	LHLD 	TXTLMT  	;check to see if there
+     231/    10C1 : EB                   	XCHG
+     232/    10C2 : CD F8 14             	CALL 	COMP  		;is enough space
+     233/    10C5 : D2 68 15             	JNC 	QSORRY 	;sorry, no room for it
+     234/    10C8 : 22 00 21             	SHLD 	TXTUNF  	;ok, update TXTUNF
+     235/    10CB : D1                   	POP 	D  		;DE->old unfilled area
+     236/    10CC : CD 16 16             	CALL 	MVDOWN
+     237/    10CF : D1                   	POP 	D  		;DE->begin, HL->end
+     238/    10D0 : E1                   	POP 	H
+     239/    10D1 : CD 0B 16             	CALL 	MVUP  		;move new line to
+     240/    10D4 : C3 76 10             	JMP 	ST2  		;save area
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 5 - 6/12/2014 10:42:54
+
+
+     241/    10D7 :                     ;
+     242/    10D7 :                     ;---------------------------------------------------------------
+     243/    10D7 :                     ;
+     244/    10D7 :                     ; *** DIRECT *** & EXEC ***
+     245/    10D7 :                     ;
+     246/    10D7 :                     ; This section of the code tests a string against a table.
+     247/    10D7 :                     ; When a match is found, control is transfered to the section
+     248/    10D7 :                     ; of code according to the table.
+     249/    10D7 :                     ;
+     250/    10D7 :                     ; At 'EXEC', DE should point to the string and HL should point
+     251/    10D7 :                     ; to the table-1. At 'DIRECT', DE should point to the string,
+     252/    10D7 :                     ; HL will be set up to point to tab1-1, which is the table of
+     253/    10D7 :                     ; all direct and statement commands.
+     254/    10D7 :                     ;
+     255/    10D7 :                     ; A '.' in the string will terminate the test and the partial
+     256/    10D7 :                     ; match will be considered as a match, e.g., 'P.', 'PR.',
+     257/    10D7 :                     ; 'PRI.', 'PRIN.' or 'PRINT' will all match 'PRINT'.
+     258/    10D7 :                     ;
+     259/    10D7 :                     ; The table consists of any number of items. Each item is a
+     260/    10D7 :                     ; string of characters with bit 7 set to 0 and a jump address
+     261/    10D7 :                     ; stored hi-low with bit 7 of the high byte set to 1.
+     262/    10D7 :                     ;
+     263/    10D7 :                     ; End of table is an item with a jump address only. If the
+     264/    10D7 :                     ; string does not match any of the other items, it will match
+     265/    10D7 :                     ; this null item as default.
+     266/    10D7 :                     ;
+     267/    10D7 : 21 0D 17            DIRECT:	LXI 	H, TAB1-1 ;*** DIRECT ***
+     268/    10DA :                     ;
+     269/    10DA : CD 2D 15            EXEC: 	CALL 	IGNBLK		;*** EXEC ***
+     270/    10DD : D5                   	PUSH 	D  		;save pointer
+     271/    10DE : 1A                  EX1: 	LDAX 	D  		;if found '.' in string
+     272/    10DF : 13                   	INX 	D  		;before any mismatch
+     273/    10E0 : FE 2E                	CPI 	'.'  		;we declare a match
+     274/    10E2 : CA FB 10             	JZ 	EX3
+     275/    10E5 : 23                   	INX 	H  		;HL->table
+     276/    10E6 : BE                   	CMP 	M  		;if match, test next
+     277/    10E7 : CA DE 10             	JZ 	EX1
+     278/    10EA : 3E 7F                	MVI 	A, 07FH	 	;else, see if bit 7
+     279/    10EC : 1B                   	DCX 	D  		;of table is set, which
+     280/    10ED : BE                   	CMP 	M  		;is the jump address (HIGH)
+     281/    10EE : DA 02 11             	JC 	EX5  		;C=yes, matched
+     282/    10F1 : 23                  EX2: 	INX 	H  		;NC=no, find jump address
+     283/    10F2 : BE                   	CMP 	M
+     284/    10F3 : D2 F1 10             	JNC 	EX2
+     285/    10F6 : 23                   	INX 	H  		;bump to next table item
+     286/    10F7 : D1                   	POP 	D  		;restore string pointer
+     287/    10F8 : C3 DA 10             	JMP 	EXEC  		;test again next item
+     288/    10FB : 3E 7F               EX3: 	MVI 	A, 07FH	 	;partial match, find
+     289/    10FD : 23                  EX4: 	INX 	H  		;jump address, which is
+     290/    10FE : BE                   	CMP 	M  		;flagged by bit 7
+     291/    10FF : D2 FD 10             	JNC 	EX4
+     292/    1102 : 7E                  EX5: 	MOV 	A, M  		;load HL with the jump
+     293/    1103 : 23                   	INX 	H  		;address from the table
+     294/    1104 : 6E                   	MOV 	L, M  		;****************
+     295/    1105 : E6 7F                	ANI 	07FH  		;*** ANI 07FH ***
+     296/    1107 : 67                   	MOV 	H, A  		;****************
+     297/    1108 : F1                   	POP 	PSW  		;clean up the garbage
+     298/    1109 : E9                   	PCHL   			;and we go do it
+     299/    110A :                     ;
+     300/    110A :                     ;---------------------------------------------------------------
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 6 - 6/12/2014 10:42:54
+
+
+     301/    110A :                     ;
+     302/    110A :                     ; What follows is the code to execute direct and statement
+     303/    110A :                     ; commands. Control is transfered to these points via the
+     304/    110A :                     ; command table lookup code of 'DIRECT' and 'EXEC' in last
+     305/    110A :                     ; section. After the command is executed, control is transfered
+     306/    110A :                     ; to other sections as follows:
+     307/    110A :                     ;
+     308/    110A :                     ; For 'LIST', 'NEW', and 'STOP': go back to 'RSTART'.
+     309/    110A :                     ; For 'RUN': go execute the first stored line if any;
+     310/    110A :                     ;      else go back to 'RSTART'.
+     311/    110A :                     ; For 'GOTO' and 'GOSUB': go execute the target line.
+     312/    110A :                     ; For 'RETURN' and 'NEXT': go back to saved return line.
+     313/    110A :                     ; For all others: if 'CURRNT' -> 0, go to 'RSTART',
+     314/    110A :                     ;     else go execute next command. (This is done in 'FINISH'.)
+     315/    110A :                     ;
+     316/    110A :                     ;---------------------------------------------------------------
+     317/    110A :                     ;
+     318/    110A :                     ; *** NEW *** STOP *** RUN (& friends) *** & GOTO ***
+     319/    110A :                     ;
+     320/    110A :                     ; 'NEW(CR)' resets 'TXTUNF'.
+     321/    110A :                     ;
+     322/    110A :                     ; 'STOP(CR)' goes back to 'RSTART'.
+     323/    110A :                     ;
+     324/    110A :                     ; 'RUN(CR)' finds the first stored line, store its address
+     325/    110A :                     ; (in 'CURRNT'), and start execute it. Note that only those
+     326/    110A :                     ; commands in TAB2 are legal for stored program.
+     327/    110A :                     ;
+     328/    110A :                     ; There are 3 more entries in 'RUN':
+     329/    110A :                     ; 'RUNNXL' finds next line, stores its address and executes it.
+     330/    110A :                     ; 'RUNTSL' stores the address of this line and execute it.
+     331/    110A :                     ; 'RUNSML' continues the execution on same line.
+     332/    110A :                     ;
+     333/    110A :                     ; 'GOTO expr(CR)' evaluates the expression, find the target
+     334/    110A :                     ; line, and jump to 'RUNTSL' to do it.
+     335/    110A :                     ;
+     336/    110A : CD 35 15            NEW: 	CALL 	ENDCHK  	;*** NEW(CR) ***
+     337/    110D : C3 1B 10             	JMP 	PURGE
+     338/    1110 :                     ;
+     339/    1110 : CD 35 15            STOP: 	CALL 	ENDCHK  	;*** STOP(CR) ***
+     340/    1113 : C3 5E 10             	JMP 	RSTART
+     341/    1116 :                     ;
+     342/    1116 : CD 35 15            RUN: 	CALL 	ENDCHK  	;*** RUN(CR) ***
+     343/    1119 : 11 02 21             	LXI 	D, TEXT	 	;first saved line
+     344/    111C :                     ;
+     345/    111C : 21 00 00            RUNNXL: LXI 	H, 0  		;*** RUNNXL ***
+     346/    111F : CD 77 15             	CALL 	FNDLP  		;find whatever line #
+     347/    1122 : DA 5E 10             	JC 	RSTART  	;C=passed TXTUNF, quit
+     348/    1125 :                     ;
+     349/    1125 : EB                  RUNTSL: XCHG   		;*** RUNTSL ***
+     350/    1126 : 22 37 20             	SHLD 	CURRNT  	;set 'CURRNT'->line #
+     351/    1129 : EB                   	XCHG
+     352/    112A : 13                   	INX 	D  		;bump pass line #
+     353/    112B : 13                   	INX 	D
+     354/    112C :                     ;
+     355/    112C : CD A8 17            RUNSML: CALL 	CHKIO		;*** RUNSML ***
+     356/    112F : 21 22 17             	LXI 	H, TAB2-1 	;find command in TAB2
+     357/    1132 : C3 DA 10             	JMP 	EXEC  		;and execute it
+     358/    1135 :                     ;
+     359/    1135 : CD 66 13            GOTO: 	CALL 	EXPR  		;*** GOTO expr ***
+     360/    1138 : D5                   	PUSH 	D  		;save for error routine
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 7 - 6/12/2014 10:42:54
+
+
+     361/    1139 : CD 35 15             	CALL 	ENDCHK  	;must find a CR
+     362/    113C : CD 6F 15             	CALL 	FNDLN  		;find the target line
+     363/    113F : C2 05 16             	JNZ 	AHOW  		;no such line #
+     364/    1142 : F1                   	POP 	PSW  		;clear the "PUSH DE"
+     365/    1143 : C3 25 11             	JMP 	RUNTSL  	;go do it
+     366/    1146 :                     ;
+     367/    1146 :                     ;---------------------------------------------------------------
+     368/    1146 :                     ;
+     369/    1146 :                     ; *** LIST *** & PRINT ***
+     370/    1146 :                     ;
+     371/    1146 :                     ; LIST has three forms:
+     372/    1146 :                     ; 'LIST(CR)' lists all saved lines.
+     373/    1146 :                     ; 'LIST n(CR)' start list at line n.
+     374/    1146 :                     ; 'LIST n1, n2(CR)' start list at line n1 for n2 lines.
+     375/    1146 :                     ; (You can stop the listing by Control-C key.)
+     376/    1146 :                     ;
+     377/    1146 :                     ; PRINT command is 'PRINT .....;' or 'PRINT ....(CR)'
+     378/    1146 :                     ; where '...' is a list of expressions, formats, and/or strings.
+     379/    1146 :                     ; These items are separated by commas.
+     380/    1146 :                     ;
+     381/    1146 :                     ; A format is a number sign followed by a number. It controls
+     382/    1146 :                     ; the number of spaces the value of a expression is going
+     383/    1146 :                     ; to be printed. It stays effective for the rest of the print
+     384/    1146 :                     ; command unless changed by another format. If no format is
+     385/    1146 :                     ; specified, 8 positions will be used.
+     386/    1146 :                     ;
+     387/    1146 :                     ; A string is quoted in a pair of single quotes or a pair of
+     388/    1146 :                     ; double quotes.
+     389/    1146 :                     ;
+     390/    1146 :                     ; Control characters and lower case letters can be included
+     391/    1146 :                     ; inside the quotes. Another (better) way of generating control
+     392/    1146 :                     ; characters on the output is use the up-arrow character
+     393/    1146 :                     ; followed by a letter.  L means FF,  I means HT,
+     394/    1146 :                     ;  G means BELL, etc.
+     395/    1146 :                     ;
+     396/    1146 :                     ; A (CRLF) is generated after the entire list has been printed
+     397/    1146 :                     ; or if the list is a null list. Howewer if the list ended with
+     398/    1146 :                     ; a comma, no (CRLF) is generated.
+     399/    1146 :                     ;
+     400/    1146 : CD DA 15            LIST: 	CALL 	TSTNUM  	;test if there is a #
+     401/    1149 : E5                   	PUSH 	H
+     402/    114A : 21 FF FF             	LXI 	H, 0FFFFH
+     403/    114D : (MACRO)              	tstc 	',', ls1
+     403/    114D : CD C6 15                    CALL    TSTCH
+     403/    1150 : 2C                          DB      ','
+     403/    1151 : 03                          DB      (LS1 - $ - 1) & 0FFH
+     404/    1152 : CD DA 15             	CALL 	TSTNUM
+     405/    1155 : E3                  LS1: 	XTHL
+     406/    1156 : CD 35 15             	CALL 	ENDCHK  	;if no #, we get a 0
+     407/    1159 : CD 6F 15             	CALL 	FNDLN		;find this or next line
+     408/    115C : DA 5E 10            LS2: 	JC 	RSTART  	;C=passed TXTUNF
+     409/    115F : E3                   	XTHL
+     410/    1160 : 7C                   	MOV 	A, H
+     411/    1161 : B5                   	ORA 	L
+     412/    1162 : CA 5E 10             	JZ 	RSTART
+     413/    1165 : 2B                   	DCX 	H
+     414/    1166 : E3                   	XTHL
+     415/    1167 : CD FD 16             	CALL 	PRTLN		;print the line
+     416/    116A : CD 70 16             	CALL 	PRTSTG
+     417/    116D : CD A8 17             	CALL 	CHKIO
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 8 - 6/12/2014 10:42:54
+
+
+     418/    1170 : CD 77 15             	CALL 	FNDLP  		;find next line
+     419/    1173 : C3 5C 11             	JMP 	LS2  		;and loop back
+     420/    1176 :                     ;
+     421/    1176 : 0E 08               PRINT: 	MVI 	C, 8  		;C=# of spaces
+     422/    1178 : (MACRO)              	tstc 	';', PR1 		;if null list & ";"
+     422/    1178 : CD C6 15                    CALL    TSTCH
+     422/    117B : 3B                          DB      ';'
+     422/    117C : 06                          DB      (PR1 - $ - 1) & 0FFH
+     423/    117D : CD A3 17             	CALL 	CRLF  		;give CR-LF and
+     424/    1180 : C3 2C 11             	JMP 	RUNSML  	;continue same line
+     425/    1183 : (MACRO)             PR1: 	tstc 	CR, PR6  	;if null list (CR)
+     425/    1183 : CD C6 15                    CALL    TSTCH
+     425/    1186 : 0D                          DB      CR
+     425/    1187 : 24                          DB      (PR6 - $ - 1) & 0FFH
+     426/    1188 : CD A3 17             	CALL 	CRLF  		;also give CR-LF and
+     427/    118B : C3 1C 11             	JMP 	RUNNXL  	;go to next line
+     428/    118E : (MACRO)             PR2: 	tstc 	'#', PR4 		;else, is it format?
+     428/    118E : CD C6 15                    CALL    TSTCH
+     428/    1191 : 23                          DB      '#'
+     428/    1192 : 0E                          DB      (PR4 - $ - 1) & 0FFH
+     429/    1193 : CD 66 13            PR3: 	CALL 	EXPR  		;yes, evaluate expr.
+     430/    1196 : 3E C0                	MVI 	A, 0C0H
+     431/    1198 : A5                   	ANA 	L
+     432/    1199 : B4                   	ORA 	H
+     433/    119A : C2 04 16             	JNZ 	QHOW
+     434/    119D : 4D                   	MOV 	C, L  		;and save it in C
+     435/    119E : C3 A7 11             	JMP 	PR5  		;look for more to print
+     436/    11A1 : CD 7F 16            PR4: 	CALL 	QTSTG 		;or is it a string?
+     437/    11A4 : C3 C5 11             	JMP 	PR9  		;if not, must be expr.
+     438/    11A7 : (MACRO)             PR5: 	tstc 	',', PR8 		;if ",", go find next
+     438/    11A7 : CD C6 15                    CALL    TSTCH
+     438/    11AA : 2C                          DB      ','
+     438/    11AB : 13                          DB      (PR8 - $ - 1) & 0FFH
+     439/    11AC : (MACRO)             PR6: 	tstc 	',', PR7
+     439/    11AC : CD C6 15                    CALL    TSTCH
+     439/    11AF : 2C                          DB      ','
+     439/    11B0 : 08                          DB      (PR7 - $ - 1) & 0FFH
+     440/    11B1 : 3E 20                	MVI 	A, ' '
+     441/    11B3 : CD A5 17             	CALL 	OUTCH
+     442/    11B6 : C3 AC 11             	JMP 	PR6
+     443/    11B9 : CD 1A 15            PR7: 	CALL 	FIN  		;in the list
+     444/    11BC : C3 8E 11             	JMP 	PR2  		;list continues
+     445/    11BF : CD A3 17            PR8: 	CALL 	CRLF  		;list ends
+     446/    11C2 : C3 14 15             	JMP 	FINISH
+     447/    11C5 : CD 66 13            PR9: 	CALL 	EXPR  		;evaluate the expr
+     448/    11C8 : C5                   	PUSH 	B
+     449/    11C9 : CD B9 16             	CALL 	PRTNUM  	;print the value
+     450/    11CC : C1                   	POP 	B
+     451/    11CD : C3 A7 11             	JMP 	PR5  		;more to print?
+     452/    11D0 :                     ;
+     453/    11D0 :                     ;---------------------------------------------------------------
+     454/    11D0 :                     ;
+     455/    11D0 :                     ; *** GOSUB *** & RETURN ***
+     456/    11D0 :                     ;
+     457/    11D0 :                     ; 'GOSUB expr;' or 'GOSUB expr (CR)' is like the 'GOTO' command,
+     458/    11D0 :                     ; except that the current text pointer, stack pointer etc. are
+     459/    11D0 :                     ; save so that execution can be continued after the subroutine
+     460/    11D0 :                     ; 'RETURN'. In order that 'GOSUB' can be nested (and even
+     461/    11D0 :                     ; recursive), the save area must be stacked. The stack pointer
+     462/    11D0 :                     ; is saved in 'STKGOS'. The old 'STKGOS' is saved in the stack.
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 9 - 6/12/2014 10:42:54
+
+
+     463/    11D0 :                     ; If we are in the main routine, 'STKGOS' is zero (this was done
+     464/    11D0 :                     ; by the "main" section of the code), but we still save it as
+     465/    11D0 :                     ; a flag for no further 'RETURN's.
+     466/    11D0 :                     ;
+     467/    11D0 :                     ; 'RETURN(CR)' undos everything that 'GOSUB' did, and thus
+     468/    11D0 :                     ; return the execution to the command after the most recent
+     469/    11D0 :                     ; 'GOSUB'. If 'STKGOS' is zero, it indicates that we never
+     470/    11D0 :                     ; had a 'GOSUB' and is thus an error.
+     471/    11D0 :                     ;
+     472/    11D0 : CD 41 16            GOSUB: CALL 	PUSHA  	;save the current "FOR"
+     473/    11D3 : CD 66 13             	CALL 	EXPR  		;parameters
+     474/    11D6 : D5                   	PUSH 	D  		;and text pointer
+     475/    11D7 : CD 6F 15             	CALL 	FNDLN  		;find the target line
+     476/    11DA : C2 05 16             	JNZ 	AHOW  		;not there, say "HOW?"
+     477/    11DD : 2A 37 20             	LHLD 	CURRNT  	;save old
+     478/    11E0 : E5                   	PUSH 	H  		;'CURRNT' old 'STKGOS'
+     479/    11E1 : 2A 39 20             	LHLD 	STKGOS
+     480/    11E4 : E5                   	PUSH 	H
+     481/    11E5 : 21 00 00             	LXI 	H, 0  		;and load new ones
+     482/    11E8 : 22 3D 20             	SHLD 	LOPVAR
+     483/    11EB : 39                   	DAD 	SP
+     484/    11EC : 22 39 20             	SHLD 	STKGOS
+     485/    11EF : C3 25 11             	JMP 	RUNTSL  	;then run that line
+     486/    11F2 :                     ;
+     487/    11F2 : CD 35 15            RETURN: CALL 	ENDCHK  	;there must be a CR
+     488/    11F5 : 2A 39 20             	LHLD 	STKGOS  	;old stack pointer
+     489/    11F8 : 7C                   	MOV 	A, H  		;0 means not exist
+     490/    11F9 : B5                   	ORA 	L
+     491/    11FA : CA 3B 15             	JZ 	QWHAT  	;so, we say: "WHAT?"
+     492/    11FD : F9                   	SPHL   			;else, restore it
+     493/    11FE : E1                  RESTOR: POP 	H
+     494/    11FF : 22 39 20             	SHLD 	STKGOS  	;and the old 'STKGOS'
+     495/    1202 : E1                   	POP 	H
+     496/    1203 : 22 37 20             	SHLD 	CURRNT  	;and the old 'CURRNT'
+     497/    1206 : D1                   	POP 	D  		;old text pointer
+     498/    1207 : CD 25 16             	CALL 	POPA  		;old "FOR" parameters
+     499/    120A : C3 14 15             	JMP 	FINISH
+     500/    120D :                     ;
+     501/    120D :                     ;---------------------------------------------------------------
+     502/    120D :                     ;
+     503/    120D :                     ; *** FOR *** & NEXT ***
+     504/    120D :                     ;
+     505/    120D :                     ; 'FOR' has two forms: 'FOR VAR=EXP1 TO EXP2 STEP EXP3' and
+     506/    120D :                     ; 'FOR VAR=EXP1 TO EXP2' the second form means the same thing
+     507/    120D :                     ; as the first form with EXP3=1 (i.e., with a step of +1).
+     508/    120D :                     ; PATB will find the variable var. and set its value to the
+     509/    120D :                     ; current value of EXP1. It also evaluates EXP2 and EXP3 and
+     510/    120D :                     ; save all these together with the text pointer etc. in the
+     511/    120D :                     ; 'FOR' save area, which consists of 'LOPVAR', 'LOPINC',
+     512/    120D :                     ; 'LOPLMT', 'LOPLN', and 'LOPPT'. If there is already some-
+     513/    120D :                     ; thing in the save area (this is indicated by a non-zero
+     514/    120D :                     ; 'LOPVAR'), then the old save area is saved in the stack
+     515/    120D :                     ; before the new one overwrites it. PATB will then dig in the
+     516/    120D :                     ; stack and find out if this same variable was used in another
+     517/    120D :                     ; currently active 'FOR' loop. If that is the case, then the
+     518/    120D :                     ; old 'FOR' loop is deactivated (Purged from the stack).
+     519/    120D :                     ;
+     520/    120D :                     ; 'NEXT var' serves as the logical (not necessarilly physical)
+     521/    120D :                     ; end of the 'FOR' loop. The control variable var. is checked
+     522/    120D :                     ; with the 'LOPVAR'. If they are not the same, PATB digs in the
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 10 - 6/12/2014 10:42:54
+
+
+     523/    120D :                     ; stack to find the right one and purges all those that did not
+     524/    120D :                     ; match. Either way, PATB then adds the 'STEP' to that variable
+     525/    120D :                     ; and check the result with the limit. If it is within the limit,
+     526/    120D :                     ; control loops back to the command following the 'FOR'.
+     527/    120D :                     ; If outside the limit, the save area is purged and execution
+     528/    120D :                     ; continues.
+     529/    120D :                     ;
+     530/    120D : CD 41 16            FOR: 	CALL 	PUSHA  	;save the old save area
+     531/    1210 : CD FE 14             	CALL 	SETVAL  	;set the control var.
+     532/    1213 : 2B                   	DCX 	H  		;HL is its address
+     533/    1214 : 22 3D 20             	SHLD 	LOPVAR  	;save that
+     534/    1217 : 21 7E 17             	LXI 	H, TAB4-1 	;use 'EXEC' to look
+     535/    121A : C3 DA 10             	JMP 	EXEC  		;for the word 'TO'
+     536/    121D : CD 66 13            FR1: 	CALL 	EXPR  		;evaluate the limit
+     537/    1220 : 22 41 20             	SHLD 	LOPLMT  	;save that
+     538/    1223 : 21 84 17             	LXI 	H, TAB5-1 	;use 'EXEC' to look
+     539/    1226 : C3 DA 10             	JMP 	EXEC  		;for the word 'STEP'
+     540/    1229 : CD 66 13            FR2: 	CALL 	EXPR  		;found it, get step
+     541/    122C : C3 32 12             	JMP 	FR4
+     542/    122F : 21 01 00            FR3: 	LXI 	H, 1  		;not found, set to 1
+     543/    1232 : 22 3F 20            FR4: 	SHLD 	LOPINC  	;save that too
+     544/    1235 : 2A 37 20             	LHLD 	CURRNT  	;save current line #
+     545/    1238 : 22 43 20             	SHLD 	LOPLN
+     546/    123B : EB                   	XCHG  			;and text pointer
+     547/    123C : 22 45 20             	SHLD 	LOPPT
+     548/    123F : 01 0A 00             	LXI 	B, 10  		;dig into stack to
+     549/    1242 : 2A 3D 20             	LHLD 	LOPVAR  	;find 'LOPVAR'
+     550/    1245 : EB                   	XCHG
+     551/    1246 : 60                   	MOV 	H, B
+     552/    1247 : 68                   	MOV 	L, B  		;HL=0 now
+     553/    1248 : 39                   	DAD 	SP  		;here is the stack
+     554/    1249 : C3 4D 12             	JMP 	FR6
+     555/    124C : 09                  FR5: 	DAD 	B  		;each level is 10 deep
+     556/    124D : 7E                  FR6: 	MOV 	A, M  		;get that old 'LOPVAR'
+     557/    124E : 23                   	INX 	H
+     558/    124F : B6                   	ORA 	M
+     559/    1250 : CA 6D 12             	JZ 	FR7  		;0 says no more in it
+     560/    1253 : 7E                   	MOV 	A, M
+     561/    1254 : 2B                   	DCX 	H
+     562/    1255 : BA                   	CMP 	D  		;same as this one?
+     563/    1256 : C2 4C 12             	JNZ 	FR5
+     564/    1259 : 7E                   	MOV 	A, M  		;the other half?
+     565/    125A : BB                   	CMP 	E
+     566/    125B : C2 4C 12             	JNZ 	FR5
+     567/    125E : EB                   	XCHG   			;yes, found one
+     568/    125F : 21 00 00             	LXI 	H, 0
+     569/    1262 : 39                   	DAD 	SP  		;try to move SP
+     570/    1263 : 44                   	MOV 	B, H
+     571/    1264 : 4D                   	MOV 	C, L
+     572/    1265 : 21 0A 00             	LXI 	H, 10
+     573/    1268 : 19                   	DAD 	D
+     574/    1269 : CD 16 16             	CALL 	MVDOWN  	;and purge 10 words
+     575/    126C : F9                   	SPHL   			;in the stack
+     576/    126D : 2A 45 20            FR7: 	LHLD 	LOPPT  	;job done, restore DE
+     577/    1270 : EB                   	XCHG
+     578/    1271 : C3 14 15             	JMP 	FINISH  		;and continue
+     579/    1274 :                     ;
+     580/    1274 : CD 94 15            NEXT: 	CALL 	TSTV  		;get address of var.
+     581/    1277 : DA 3B 15             	JC 	QWHAT  	;no variable, "WHAT?"
+     582/    127A : 22 3B 20             	SHLD 	VARNXT  	;yes, save it
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 11 - 6/12/2014 10:42:54
+
+
+     583/    127D : D5                  NX1: 	PUSH 	D  		;save text pointer
+     584/    127E : EB                   	XCHG
+     585/    127F : 2A 3D 20             	LHLD 	LOPVAR  	;get var. in 'FOR'
+     586/    1282 : 7C                   	MOV 	A, H
+     587/    1283 : B5                   	ORA 	L  		;0 says never had one
+     588/    1284 : CA 3C 15             	JZ 	AWHAT  	;so we ask: "WHAT?"
+     589/    1287 : CD F8 14             	CALL 	COMP  		;else, we check them
+     590/    128A : CA 97 12             	JZ 	NX2  		;ok, they agree
+     591/    128D : D1                   	POP 	D  		;no, let's see
+     592/    128E : CD 25 16             	CALL 	POPA  		;purge current loop
+     593/    1291 : 2A 3B 20             	LHLD 	VARNXT  	;and pop one level
+     594/    1294 : C3 7D 12             	JMP 	NX1  		;go check again
+     595/    1297 : 5E                  NX2: 	MOV 	E, M  		;come here when agreed
+     596/    1298 : 23                   	INX 	H
+     597/    1299 : 56                   	MOV 	D, M  		;DE=value of var.
+     598/    129A : 2A 3F 20             	LHLD 	LOPINC
+     599/    129D : E5                   	PUSH 	H
+     600/    129E : 7C                   	MOV 	A, H
+     601/    129F : AA                   	XRA 	D  		;S=sign differ
+     602/    12A0 : 7A                   	MOV 	A, D  		;A=sign of DE
+     603/    12A1 : 19                   	DAD 	D  		;add one step
+     604/    12A2 : FA A9 12             	JM 	NX3  		;cannot overflow
+     605/    12A5 : AC                   	XRA 	H  		;may overflow
+     606/    12A6 : FA CD 12             	JM 	NX5  		;and it did
+     607/    12A9 : EB                  NX3: 	XCHG
+     608/    12AA : 2A 3D 20             	LHLD 	LOPVAR  	;put it back
+     609/    12AD : 73                   	MOV 	M, E
+     610/    12AE : 23                   	INX 	H
+     611/    12AF : 72                   	MOV 	M, D
+     612/    12B0 : 2A 41 20             	LHLD 	LOPLMT  	;HL=limit
+     613/    12B3 : F1                   	POP 	PSW  		;old HL
+     614/    12B4 : B7                   	ORA 	A
+     615/    12B5 : F2 B9 12             	JP 	NX4  		;step > 0
+     616/    12B8 : EB                   	XCHG   			;step < 0
+     617/    12B9 : CD EE 14            NX4: 	CALL 	CKHLDE  	;compare with limit
+     618/    12BC : D1                   	POP 	D  		;restore text pointer
+     619/    12BD : DA CF 12             	JC 	NX6  		;outside limit
+     620/    12C0 : 2A 43 20             	LHLD 	LOPLN  		;within limit, so
+     621/    12C3 : 22 37 20             	SHLD 	CURRNT  	;back to the saved
+     622/    12C6 : 2A 45 20             	LHLD 	LOPPT  	;'CURRNT' and text
+     623/    12C9 : EB                   	XCHG   			;pointer
+     624/    12CA : C3 14 15             	JMP 	FINISH
+     625/    12CD : E1                  NX5: 	POP 	H  		;overflow, purge
+     626/    12CE : D1                   	POP 	D  		;garbage in stack
+     627/    12CF : CD 25 16            NX6: 	CALL 	POPA  		;purge this loop
+     628/    12D2 : C3 14 15             	JMP 	FINISH
+     629/    12D5 :                     ;
+     630/    12D5 :                     ;---------------------------------------------------------------
+     631/    12D5 :                     ;
+     632/    12D5 :                     ; *** REM *** IF *** INPUT *** & LET (& DEFLT) ***
+     633/    12D5 :                     ;
+     634/    12D5 :                     ; 'REM' can be followed by anything and is ignored by PATB.
+     635/    12D5 :                     ; PATB treats it like an 'IF' with a false condition.
+     636/    12D5 :                     ;
+     637/    12D5 :                     ; 'IF' is followed by an expression as a condition and one or
+     638/    12D5 :                     ; more commands (including other 'IF's) separated by semi-colons.
+     639/    12D5 :                     ; Note that the word 'THEN' is not used. PATB evaluates the expr.
+     640/    12D5 :                     ; If it is non-zero, execution continues. If the expr. is zero,
+     641/    12D5 :                     ; the commands that follows are ignored and execution continues
+     642/    12D5 :                     ; at the next line.
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 12 - 6/12/2014 10:42:54
+
+
+     643/    12D5 :                     ;
+     644/    12D5 :                     ; 'INPUT' command is like the 'PRINT' command, and is followed
+     645/    12D5 :                     ; by a list of items. If the item is a string in single or
+     646/    12D5 :                     ; double quotes, or is an up-arrow, it has the same effect as
+     647/    12D5 :                     ; in 'PRINT'. If an item is a variable, this variable name is
+     648/    12D5 :                     ; printed out followed by a colon. Then PATB waits for an expr.
+     649/    12D5 :                     ; to be typed in. The variable is then set to the value of this
+     650/    12D5 :                     ; expr. If the variable is proceded by a string (again in single
+     651/    12D5 :                     ; or double quotes), the string will be printed followed by a
+     652/    12D5 :                     ; colon. PATB then waits for input expr. and set the variable
+     653/    12D5 :                     ; to the value of the expr.
+     654/    12D5 :                     ;
+     655/    12D5 :                     ; If the input expression is invalid, PATB will print "WHAT?",
+     656/    12D5 :                     ; "HOW?" or "SORRY" and reprint the prompt and redo the input.
+     657/    12D5 :                     ; The execution will not terminate unless you type Control-C.
+     658/    12D5 :                     ; This is handled in 'INPERR'.
+     659/    12D5 :                     ;
+     660/    12D5 :                     ; 'LET' is followed by a list of items separated by commas.
+     661/    12D5 :                     ; Each item consists of a variable, an equal sign, and an expr.
+     662/    12D5 :                     ; PATB evaluates the expr. and set the variable to that value.
+     663/    12D5 :                     ; PATB will also handle 'LET' command without the word 'LET'.
+     664/    12D5 :                     ; This is done by 'DEFLT'.
+     665/    12D5 :                     ;
+     666/    12D5 : 21 00 00            REM: 	LXI 	H, 0  		;*** REM ***
+     667/    12D8 : C3 DE 12             	JMP 	IF1  		;this is like 'IF 0'
+     668/    12DB :                     ;
+     669/    12DB : CD 66 13            IFF: 	CALL 	EXPR  		;*** IF ***
+     670/    12DE : 7C                  IF1: 	MOV 	A, H  		;is the expression = 0?
+     671/    12DF : B5                   	ORA 	L
+     672/    12E0 : C2 2C 11             	JNZ 	RUNSML  	;no, continue
+     673/    12E3 : CD 8A 15             	CALL 	FNDSKP  	;yes, skip rest of line
+     674/    12E6 : D2 25 11             	JNC 	RUNTSL  	;and run the next line
+     675/    12E9 : C3 5E 10             	JMP 	RSTART  	;if no next, re-start
+     676/    12EC :                     ;
+     677/    12EC : 2A 3B 20            INPERR: LHLD 	STKINP  	;*** INPERR ***
+     678/    12EF : F9                   	SPHL   			;restore old SP
+     679/    12F0 : E1                   	POP 	H  		;and old 'CURRNT'
+     680/    12F1 : 22 37 20             	SHLD 	CURRNT
+     681/    12F4 : D1                   	POP 	D  		;and old text pointer
+     682/    12F5 : D1                   	POP 	D  		;read input
+     683/    12F6 :                     ;
+     684/    12F6 : =12F6H              INPUT: 	equ	$
+     685/    12F6 : D5                  IP1: 	PUSH 	D  		;save in case of error
+     686/    12F7 : CD 7F 16             	CALL 	QTSTG  	;is next item a string?
+     687/    12FA : C3 25 13             	JMP 	IP8  		;no
+     688/    12FD : CD 94 15            IP2: 	CALL 	TSTV  		;yes, but followed by a
+     689/    1300 : DA 19 13             	JC 	IP5  		;variable? no.
+     690/    1303 : CD 37 13            IP3: 	CALL 	IP12
+     691/    1306 : 11 4A 20             	LXI 	D, BUFFER 	;points to buffer
+     692/    1309 : CD 66 13             	CALL 	EXPR  		;evaluate input
+     693/    130C : CD 35 15             	CALL 	ENDCHK
+     694/    130F : D1                   	POP 	D  		;ok, get old HL
+     695/    1310 : EB                   	XCHG
+     696/    1311 : 73                   	MOV 	M, E  		;save value in var.
+     697/    1312 : 23                   	INX 	H
+     698/    1313 : 72                   	MOV 	M, D
+     699/    1314 : E1                  IP4: 	POP 	H  		;get old 'CURRNT'
+     700/    1315 : 22 37 20             	SHLD 	CURRNT
+     701/    1318 : D1                   	POP 	D  		;and old text pointer
+     702/    1319 : F1                  IP5: 	POP 	PSW  		;purge junk in stack
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 13 - 6/12/2014 10:42:54
+
+
+     703/    131A : (MACRO)             IP6: 	tstc 	',', IP7 		;is next char. ","?
+     703/    131A : CD C6 15                    CALL    TSTCH
+     703/    131D : 2C                          DB      ','
+     703/    131E : 03                          DB      (IP7 - $ - 1) & 0FFH
+     704/    131F : C3 F6 12             	JMP 	INPUT  		;yes, more items.
+     705/    1322 : C3 14 15            IP7: 	JMP 	FINISH
+     706/    1325 : D5                  IP8: 	PUSH 	D  		;save for 'PRTSTG'
+     707/    1326 : CD 94 15             	CALL 	TSTV  		;must be variable now
+     708/    1329 : D2 2F 13             JNC 	IP11
+     709/    132C : C3 3B 15            IP10: 	JMP 	QWHAT  	;"WHAT?" it is not?
+     710/    132F : 43                  IP11: 	MOV 	B, E
+     711/    1330 : D1                   	POP 	D
+     712/    1331 : CD AE 16             	CALL 	PRTCHS  	;print those as prompt
+     713/    1334 : C3 03 13             	JMP 	IP3  		;yes, input variable
+     714/    1337 : C1                  IP12: 	POP 	B  		;return address
+     715/    1338 : D5                   	PUSH 	D  		;save text pointer
+     716/    1339 : EB                   	XCHG
+     717/    133A : 2A 37 20             	LHLD 	CURRNT  	;also save 'CURRNT'
+     718/    133D : E5                   	PUSH 	H
+     719/    133E : 21 F6 12             	LXI 	H, IP1  		;a negative number
+     720/    1341 : 22 37 20             	SHLD 	CURRNT  	;as a flag
+     721/    1344 : 21 00 00             	LXI 	H, 0  		;save SP too
+     722/    1347 : 39                   	DAD 	SP
+     723/    1348 : 22 3B 20            	SHLD 	STKINP
+     724/    134B : D5                   	PUSH 	D  		;old HL
+     725/    134C : 3E 20                	MVI 	A, ' '  		;print a space
+     726/    134E : C5                   	PUSH 	B
+     727/    134F : C3 AB 17             	JMP 	GETLN  		;and get a line
+     728/    1352 :                     ;
+     729/    1352 : 1A                  DEFLT: 	LDAX 	D  		;*** DEFLT ***
+     730/    1353 : FE 0D                	CPI 	CR  		;empty line is ok
+     731/    1355 : CA 63 13             	JZ 	LT4  		;else, it is 'LET'
+     732/    1358 :                     ;
+     733/    1358 : =1358H              LET: 	equ	$  		;*** LET ***
+     734/    1358 : CD FE 14            LT2: 	CALL 	SETVAL
+     735/    135B : (MACRO)             LT3: 	tstc 	',', LT4 		;set value to var.
+     735/    135B : CD C6 15                    CALL    TSTCH
+     735/    135E : 2C                          DB      ','
+     735/    135F : 03                          DB      (LT4 - $ - 1) & 0FFH
+     736/    1360 : C3 58 13             	JMP 	LET  		;item by item
+     737/    1363 : C3 14 15            LT4: 	JMP 	FINISH  		;until finish
+     738/    1366 :                     ;
+     739/    1366 :                     ;---------------------------------------------------------------
+     740/    1366 :                     ;
+     741/    1366 :                     ; *** EXPR ***
+     742/    1366 :                     ;
+     743/    1366 :                     ; 'EXPR' evaluates arithmetical or logical expressions.
+     744/    1366 :                     ; <EXPR>::=<EXPR1>
+     745/    1366 :                     ;    <EXPR1><REL.OP.><EXPR1>
+     746/    1366 :                     ; where <REL.OP.> is one of the operators in TAB6 and the result
+     747/    1366 :                     ; of these operations is 1 if true and 0 if false.
+     748/    1366 :                     ; <EXPR1>::=(+ or -)<EXPR2>(+ or -<EXPR2>)(.....)
+     749/    1366 :                     ; where () are optional and (.....) are optional repeats.
+     750/    1366 :                     ; <EXPR2>::=<EXPR3>(<* or /><EXPR3>)(.....)
+     751/    1366 :                     ; <EXPR3>::=<VARIABLE>
+     752/    1366 :                     ;      <FUNCTION>
+     753/    1366 :                     ;      (<EXPR>)
+     754/    1366 :                     ; <EXPR> is recursive so that variable '@' can have an <EXPR>
+     755/    1366 :                     ; as index. Functions can have an <EXPR> as arguments,
+     756/    1366 :                     ; and <EXPR3> can be an <EXPR> in parenthese.
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 14 - 6/12/2014 10:42:54
+
+
+     757/    1366 :                     ;
+     758/    1366 : CD AE 13            EXPR: 	CALL 	EXPR1  		;*** EXPR ***
+     759/    1369 : E5                   	PUSH 	H  		;save <EXPR1> value
+     760/    136A : 21 8C 17             	LXI 	H, TAB6-1 	;lookup REL.OP.
+     761/    136D : C3 DA 10             	JMP 	EXEC  		;go do it
+     762/    1370 : CD 99 13            XPR1: 	CALL 	XPR8  		;REL.OP.">="
+     763/    1373 : D8                   	RC   			;no, return HL=0
+     764/    1374 : 6F                   	MOV 	L, A  		;yes, return HL=1
+     765/    1375 : C9                   	RET
+     766/    1376 : CD 99 13            XPR2: 	CALL 	XPR8  		;REL.OP."#"
+     767/    1379 : C8                   	RZ   			;false, return HL=0
+     768/    137A : 6F                   	MOV 	L, A  		;true, return HL=1
+     769/    137B : C9                   	RET
+     770/    137C : CD 99 13            XPR3: 	CALL 	XPR8  		;REL.OP.">"
+     771/    137F : C8                   	RZ   			;false
+     772/    1380 : D8                   	RC   			;also false, HL=0
+     773/    1381 : 6F                   	MOV 	L, A  		;true, HL=1
+     774/    1382 : C9                   	RET
+     775/    1383 : CD 99 13            XPR4: 	CALL 	XPR8  		;REL.OP."<="
+     776/    1386 : 6F                   	MOV 	L, A  		;set HL=1
+     777/    1387 : C8                   	RZ   			;REL.OP. true, return
+     778/    1388 : D8                   	RC
+     779/    1389 : 6C                   	MOV 	L, H  		;else, set HL=0
+     780/    138A : C9                   	RET
+     781/    138B : CD 99 13            XPR5: 	CALL 	XPR8  		;REL.OP."="
+     782/    138E : C0                   	RNZ   			;false, return HL=0
+     783/    138F : 6F                   	MOV 	L, A  		;else set HL=1
+     784/    1390 : C9                   	RET
+     785/    1391 : CD 99 13            XPR6: 	CALL 	XPR8  		;REL.OP."<"
+     786/    1394 : D0                   	RNC   			;false, return HL=0
+     787/    1395 : 6F                   	MOV 	L, A  		;else set HL=1
+     788/    1396 : C9                   	RET
+     789/    1397 : E1                  XPR7: 	POP 	H  		;not REL.OP.
+     790/    1398 : C9                   	RET   			;return HL=<EXPR1>
+     791/    1399 : 79                  XPR8: 	MOV 	A, C  		;subroutine for all
+     792/    139A : E1                   	POP 	H  		;REL.OP.'s
+     793/    139B : C1                   	POP 	B
+     794/    139C : E5                   	PUSH 	H  		;reverse top of stack
+     795/    139D : C5                   	PUSH 	B
+     796/    139E : 4F                   	MOV 	C, A
+     797/    139F : CD AE 13             	CALL 	EXPR1  		;set 2nd <EXPR1>
+     798/    13A2 : EB                   	XCHG   			;value in DE now
+     799/    13A3 : E3                   	XTHL   			;1st <EXPR1> in HL
+     800/    13A4 : CD EE 14             	CALL 	CKHLDE  	;compare 1st with 2nd
+     801/    13A7 : D1                   	POP 	D  		;restore text pointer
+     802/    13A8 : 21 00 00             	LXI 	H, 0  		;set HL=0, A=1
+     803/    13AB : 3E 01                	MVI 	A, 1
+     804/    13AD : C9                   	RET
+     805/    13AE :                     ;
+     806/    13AE : (MACRO)             EXPR1:	tstc 	'-', XP11 	;negative sign?
+     806/    13AE : CD C6 15                    CALL    TSTCH
+     806/    13B1 : 2D                          DB      '-'
+     806/    13B2 : 06                          DB      (XP11 - $ - 1) & 0FFH
+     807/    13B3 : 21 00 00             	LXI 	H,0  		;yes, fake '0-'
+     808/    13B6 : C3 E0 13             	JMP 	XP16  		;treat like subtract
+     809/    13B9 : (MACRO)             XP11: 	tstc 	'+', XP12 	;positive sign? ignore
+     809/    13B9 : CD C6 15                    CALL    TSTCH
+     809/    13BC : 2B                          DB      '+'
+     809/    13BD : 00                          DB      (XP12 - $ - 1) & 0FFH
+     810/    13BE : CD EA 13            XP12: 	CALL 	EXPR2  		;1st <EXPR2>
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 15 - 6/12/2014 10:42:54
+
+
+     811/    13C1 : (MACRO)             XP13: 	tstc 	'+', XP15 	;add?
+     811/    13C1 : CD C6 15                    CALL    TSTCH
+     811/    13C4 : 2B                          DB      '+'
+     811/    13C5 : 15                          DB      (XP15 - $ - 1) & 0FFH
+     812/    13C6 : E5                   	PUSH 	H  		;yes, save value
+     813/    13C7 : CD EA 13             	CALL 	EXPR2  		;get 2nd <EXPR2>
+     814/    13CA : EB                  XP14: 	XCHG   			;2nd in DE
+     815/    13CB : E3                   	XTHL   			;1st in HL
+     816/    13CC : 7C                   	MOV 	A, H  		;compare sign
+     817/    13CD : AA                   	XRA 	D
+     818/    13CE : 7A                   	MOV 	A, D
+     819/    13CF : 19                   	DAD 	D
+     820/    13D0 : D1                   	POP 	D  		;restore text pointer
+     821/    13D1 : FA C1 13             	JM 	XP13  		;1st 2nd sign differ
+     822/    13D4 : AC                   	XRA 	H  		;1st 2nd sign equal
+     823/    13D5 : F2 C1 13             	JP 	XP13  		;so is equal
+     824/    13D8 : C3 04 16             	JMP 	QHOW  		;else, we have overflow
+     825/    13DB : (MACRO)             XP15: 	tstc 	'-', XPR9 	;subtract?
+     825/    13DB : CD C6 15                    CALL    TSTCH
+     825/    13DE : 2D                          DB      '-'
+     825/    13DF : 92                          DB      (XPR9 - $ - 1) & 0FFH
+     826/    13E0 : E5                  XP16: 	PUSH 	H  		;yes, save 1st <EXPR2>
+     827/    13E1 : CD EA 13             	CALL 	EXPR2  		;get 2nd <EXPR2>
+     828/    13E4 : CD D9 14             	CALL 	CHGSGN  	;negate
+     829/    13E7 : C3 CA 13             	JMP 	XP14  		;and add them
+     830/    13EA :                     ;
+     831/    13EA : CD 4E 14            EXPR2:	CALL 	EXPR3  		;get 1st <EXPR3>
+     832/    13ED : (MACRO)             XP21: 	tstc 	'*', XP24 	;multiply?
+     832/    13ED : CD C6 15                    CALL    TSTCH
+     832/    13F0 : 2A                          DB      '*'
+     832/    13F1 : 2D                          DB      (XP24 - $ - 1) & 0FFH
+     833/    13F2 : E5                   	PUSH 	H  		;yes, save 1st
+     834/    13F3 : CD 4E 14             	CALL 	EXPR3  		;and get 2nd <EXPR3>
+     835/    13F6 : 06 00                	MVI 	B, 0  		;clear B for sign
+     836/    13F8 : CD D6 14             	CALL 	CHKSGN  	;check sign
+     837/    13FB : E3                   	XTHL  			;1st in HL
+     838/    13FC : CD D6 14             	CALL 	CHKSGN  	;check sign of 1st
+     839/    13FF : EB                   	XCHG
+     840/    1400 : E3                   	XTHL
+     841/    1401 : 7C                   	MOV 	A, H  		;is HL > 255 ?
+     842/    1402 : B7                   	ORA 	A
+     843/    1403 : CA 0C 14             	JZ 	XP22  		;no
+     844/    1406 : 7A                   	MOV 	A, D  		;yes, how about DE
+     845/    1407 : B2                   	ORA 	D
+     846/    1408 : EB                   	XCHG   			;put smaller in HL
+     847/    1409 : C2 05 16             	JNZ 	AHOW  		;also >, will overflow
+     848/    140C : 7D                  XP22: 	MOV 	A, L  		;this is dump
+     849/    140D : 21 00 00             	LXI 	H, 0  		;clear result
+     850/    1410 : B7                   	ORA 	A  		;add and count
+     851/    1411 : CA 40 14             	JZ 	XP25
+     852/    1414 : 19                  XP23: 	DAD 	D
+     853/    1415 : DA 05 16             	JC 	AHOW  		;overflow
+     854/    1418 : 3D                   	DCR 	A
+     855/    1419 : C2 14 14             	JNZ 	XP23
+     856/    141C : C3 40 14             	JMP 	XP25  		;finished
+     857/    141F : (MACRO)             XP24: 	tstc 	'/', XPR9 	;divide?
+     857/    141F : CD C6 15                    CALL    TSTCH
+     857/    1422 : 2F                          DB      '/'
+     857/    1423 : 4E                          DB      (XPR9 - $ - 1) & 0FFH
+     858/    1424 : E5                   	PUSH 	H  		;yes, save 1st <EXPR3>
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 16 - 6/12/2014 10:42:54
+
+
+     859/    1425 : CD 4E 14             	CALL 	EXPR3  		;and get 2nd one
+     860/    1428 : 06 00                	MVI 	B, 0  		;clear B for sign
+     861/    142A : CD D6 14             	CALL 	CHKSGN  	;check sign of 2nd
+     862/    142D : E3                   	XTHL   			;get 1st in HL
+     863/    142E : CD D6 14             	CALL 	CHKSGN  	;check sign of 1st
+     864/    1431 : EB                   	XCHG
+     865/    1432 : E3                   	XTHL
+     866/    1433 : EB                   	XCHG
+     867/    1434 : 7A                   	MOV 	A, D  		;divide by 0?
+     868/    1435 : B3                   	ORA 	E
+     869/    1436 : CA 05 16             	JZ 	AHOW  		;say "HOW?"
+     870/    1439 : C5                   	PUSH 	B  		;else, save sign
+     871/    143A : CD B9 14             	CALL 	DIVIDE  		;use subroutine
+     872/    143D : 60                   	MOV 	H, B  		;result in HL now
+     873/    143E : 69                   	MOV 	L, C
+     874/    143F : C1                   	POP 	B  		;get sign back
+     875/    1440 : D1                  XP25: 	POP 	D  		;and text pointer
+     876/    1441 : 7C                   	MOV 	A, H  		;HL must be +
+     877/    1442 : B7                   	ORA 	A
+     878/    1443 : FA 04 16             	JM 	QHOW  		;else, it is overflow
+     879/    1446 : 78                   	MOV 	A, B
+     880/    1447 : B7                   	ORA 	A
+     881/    1448 : FC D9 14             	CM 	CHGSGN  	;change sign if needed
+     882/    144B : C3 ED 13             	JMP 	XP21  		;look for more terms
+     883/    144E :                     ;
+     884/    144E : 21 69 17            EXPR3: 	LXI 	H, TAB3-1 	;find function in TAB3
+     885/    1451 : C3 DA 10             	JMP 	EXEC  		;and go do it
+     886/    1454 : CD 94 15            NOTF: 	CALL 	TSTV  		;no, not a function
+     887/    1457 : DA 5F 14             	JC 	XP32  		;nor a variable
+     888/    145A : 7E                   	MOV 	A, M  		;variable
+     889/    145B : 23                   	INX 	H
+     890/    145C : 66                   	MOV 	H, M  		;value in HL
+     891/    145D : 6F                   	MOV 	L, A
+     892/    145E : C9                   	RET
+     893/    145F : CD DA 15            XP32: 	CALL 	TSTNUM  	;or is it a number
+     894/    1462 : 78                   	MOV 	A, B  		;# of digit
+     895/    1463 : B7                   	ORA 	A
+     896/    1464 : C0                   	RNZ   			;ok
+     897/    1465 : (MACRO)             PARN: 	tstc 	'(', XPR0 	;no digit, must be
+     897/    1465 : CD C6 15                    CALL    TSTCH
+     897/    1468 : 28                          DB      '('
+     897/    1469 : 09                          DB      (XPR0 - $ - 1) & 0FFH
+     898/    146A : CD 66 13            PARNP:	CALL 	EXPR  		;"(EXPR)"
+     899/    146D : (MACRO)              	tstc 	')', XPR0
+     899/    146D : CD C6 15                    CALL    TSTCH
+     899/    1470 : 29                          DB      ')'
+     899/    1471 : 01                          DB      (XPR0 - $ - 1) & 0FFH
+     900/    1472 : C9                  XPR9: 	RET
+     901/    1473 : C3 3B 15            XPR0: 	JMP 	QWHAT  	;else, say: "WHAT?"
+     902/    1476 :                     ;
+     903/    1476 : CD 65 14            RND: 	CALL 	PARN  		;*** RND(EXPR) ***
+     904/    1479 : 7C                   	MOV 	A, H  		;expr must be +
+     905/    147A : B7                   	ORA 	A
+     906/    147B : FA 04 16             	JM 	QHOW
+     907/    147E : B5                   	ORA 	L  		;and non-zero
+     908/    147F : CA 04 16             	JZ 	QHOW
+     909/    1482 : D5                   	PUSH 	D  		;save both
+     910/    1483 : E5                   	PUSH 	H
+     911/    1484 : 2A 47 20             	LHLD 	RANPNT  	;get memory as random
+     912/    1487 : 11 A3 17             	LXI 	D, RANEND
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 17 - 6/12/2014 10:42:54
+
+
+     913/    148A : CD F8 14             	CALL 	COMP
+     914/    148D : DA 93 14             	JC 	RA1  		;wrap around if last
+     915/    1490 : 21 00 10             	LXI 	H, BOTROM
+     916/    1493 : 5E                  RA1: 	MOV 	E, M
+     917/    1494 : 23                   	INX 	H
+     918/    1495 : 56                   	MOV 	D, M
+     919/    1496 : 22 47 20             	SHLD 	RANPNT
+     920/    1499 : E1                   	POP 	H
+     921/    149A : EB                   	XCHG
+     922/    149B : C5                   	PUSH 	B
+     923/    149C : CD B9 14             	CALL 	DIVIDE  		;RND(N)=MOD(M,N)+1
+     924/    149F : C1                   	POP 	B
+     925/    14A0 : D1                   	POP 	D
+     926/    14A1 : 23                   	INX 	H
+     927/    14A2 : C9                   	RET
+     928/    14A3 :                     ;
+     929/    14A3 : CD 65 14            ABS: 	CALL 	PARN  		;*** ABS(EXPR) ***
+     930/    14A6 : 1B                   	DCX 	D
+     931/    14A7 : CD D6 14             	CALL 	CHKSGN  	;check sign
+     932/    14AA : 13                   	INX 	D
+     933/    14AB : C9                   	RET
+     934/    14AC :                     ;
+     935/    14AC : 2A 00 21            SIZE: 	LHLD 	TXTUNF  	;*** SIZE ***
+     936/    14AF : D5                   	PUSH 	D  		;get the number of free
+     937/    14B0 : EB                   	XCHG   			;bytes between 'TXTUNF'
+     938/    14B1 : 2A 01 20             	LHLD 	TXTLMT  	;and 'TXTLMT'
+     939/    14B4 : CD CF 14             	CALL 	SUBDE
+     940/    14B7 : D1                   	POP 	D
+     941/    14B8 : C9                   	RET
+     942/    14B9 :                     ;
+     943/    14B9 :                     ;---------------------------------------------------------------
+     944/    14B9 :                     ;
+     945/    14B9 :                     ; *** DIVIDE *** SUBDE *** CHKSGN *** CHGSGN *** & CKHLDE ***
+     946/    14B9 :                     ;
+     947/    14B9 :                     ; 'DIVIDE' divides HL by DE. Result in BC, remainder in HL.
+     948/    14B9 :                     ;
+     949/    14B9 :                     ; 'SUBDE' subtracts DE from HL.
+     950/    14B9 :                     ;
+     951/    14B9 :                     ; 'CHKSGN' checks sign of HL. If +, no change. If -, change sign
+     952/    14B9 :                     ; and flip sign of B.
+     953/    14B9 :                     ;
+     954/    14B9 :                     ; 'CHGSGN' changes sign of HL and B unconditionnally.
+     955/    14B9 :                     ;
+     956/    14B9 :                     ; 'CKHLDE' checks sign of HL and DE. If different, HL and DE
+     957/    14B9 :                     ; are interchanged. If same sign, not interchanged. Either case,
+     958/    14B9 :                     ; HL DE are then compared to set the flags.
+     959/    14B9 :                     ;
+     960/    14B9 : E5                  DIVIDE: 	PUSH 	H  		;*** DIVIDE ***
+     961/    14BA : 6C                   	MOV 	L, H  		;divide H by DE
+     962/    14BB : 26 00                	MVI 	H, 0
+     963/    14BD : CD C4 14             	CALL 	DV1
+     964/    14C0 : 41                   	MOV 	B, C  		;save result in B
+     965/    14C1 : 7D                   	MOV 	A, L  		;(remainder+L)/DE
+     966/    14C2 : E1                   	POP 	H
+     967/    14C3 : 67                   	MOV 	H, A
+     968/    14C4 : 0E FF               DV1: 	MVI 	C, -1  		;result in C
+     969/    14C6 : 0C                  DV2: 	INR 	C  		;dumb routine
+     970/    14C7 : CD CF 14             	CALL 	SUBDE  		;divide by subtract
+     971/    14CA : D2 C6 14             	JNC 	DV2  		;and count
+     972/    14CD : 19                   	DAD 	D
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 18 - 6/12/2014 10:42:54
+
+
+     973/    14CE : C9                   	RET
+     974/    14CF :                     ;
+     975/    14CF : 7D                  SUBDE: 	MOV 	A, L  		;*** SUBDE ***
+     976/    14D0 : 93                   	SUB 	E  		;subtract DE from
+     977/    14D1 : 6F                   	MOV 	L, A  		;HL
+     978/    14D2 : 7C                   	MOV 	A, H
+     979/    14D3 : 9A                   	SBB 	D
+     980/    14D4 : 67                   	MOV 	H, A
+     981/    14D5 : C9                   	RET
+     982/    14D6 :                     ;
+     983/    14D6 : 7C                  CHKSGN: MOV 	A, H  		;*** CHKSGN ***
+     984/    14D7 : B7                   	ORA 	A  		;check sign of HL
+     985/    14D8 : F0                   	RP   			;if ), change sign
+     986/    14D9 :                     ;
+     987/    14D9 : 7C                  CHGSGN: MOV 	A, H  		;*** CHGSGN ***
+     988/    14DA : B5                   	ORA 	L
+     989/    14DB : C8                   	RZ
+     990/    14DC : 7C                   	MOV 	A, H
+     991/    14DD : F5                   	PUSH 	PSW
+     992/    14DE : 2F                   	CMA   			;change sign of HL
+     993/    14DF : 67                   	MOV 	H, A
+     994/    14E0 : 7D                   	MOV 	A, L
+     995/    14E1 : 2F                   	CMA
+     996/    14E2 : 6F                   	MOV 	L, A
+     997/    14E3 : 23                   	INX 	H
+     998/    14E4 : F1                   	POP 	PSW
+     999/    14E5 : AC                   	XRA 	H
+    1000/    14E6 : F2 04 16             	JP 	QHOW
+    1001/    14E9 : 78                   	MOV 	A, B  		;and also flip B
+    1002/    14EA : EE 80                	XRI 	80H
+    1003/    14EC : 47                   	MOV 	B, A
+    1004/    14ED : C9                   	RET
+    1005/    14EE :                     ;
+    1006/    14EE : 7C                  CKHLDE: MOV 	A, H  		;*** CKHLDE ***
+    1007/    14EF : AA                   	XRA 	D  		;same sign?
+    1008/    14F0 : F2 F4 14             	JP 	CK1  		;yes, compare
+    1009/    14F3 : EB                   	XCHG   			;no, xch and comp
+    1010/    14F4 : CD F8 14            CK1: 	CALL 	COMP
+    1011/    14F7 : C9                   	RET
+    1012/    14F8 :                     ;
+    1013/    14F8 : 7C                  COMP: 	MOV 	A, H  		;*** COMP ***
+    1014/    14F9 : BA                   	CMP 	D  		;compare HL with DE
+    1015/    14FA : C0                   	RNZ   			;return correct C and
+    1016/    14FB : 7D                   	MOV 	A, L  		;Z flags
+    1017/    14FC : BB                   	CMP 	E  		;but old A is lost
+    1018/    14FD : C9                   	RET
+    1019/    14FE :                     ;
+    1020/    14FE :                     ;---------------------------------------------------------------
+    1021/    14FE :                     ;
+    1022/    14FE :                     ; *** SETVAL *** FIN *** ENDCHK *** & ERROR (& friends) ***
+    1023/    14FE :                     ;
+    1024/    14FE :                     ; 'SETVAL' expects a variable, followed by an equal sign and
+    1025/    14FE :                     ; then an expr. It evaluates the expr. and set the variable
+    1026/    14FE :                     ; to that value.
+    1027/    14FE :                     ;
+    1028/    14FE :                     ; 'FIN' checks the end of a command. If it ended with ";",
+    1029/    14FE :                     ; execution continues. If it ended with a CR, it finds the next
+    1030/    14FE :                     ; line and continue from there.
+    1031/    14FE :                     ;
+    1032/    14FE :                     ; 'ENDCHK' checks if a command is ended with CR. This is
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 19 - 6/12/2014 10:42:54
+
+
+    1033/    14FE :                     ; required in certain commands. (GOTO, RETURN, and STOP etc.)
+    1034/    14FE :                     ;
+    1035/    14FE :                     ; 'ERROR' prints the string pointed by DE (and ends with CR).
+    1036/    14FE :                     ; It then prints the line pointed by 'CURRNT' with a "?"
+    1037/    14FE :                     ; inserted at where the old text pointer (should be on top of
+    1038/    14FE :                     ; the stack) points to. Execution of TB is stopped and PATB is
+    1039/    14FE :                     ; restarted. Howewer, if 'CURRNT' -> zero (indicating a direct
+    1040/    14FE :                     ; command), the direct command is not printed, and if 'CURRNT'
+    1041/    14FE :                     ; -> negative # (indicating 'INPUT' command), the input line is
+    1042/    14FE :                     ; not printed and execution is not terminated but continued at
+    1043/    14FE :                     ; 'INPERR'.
+    1044/    14FE :                     ;
+    1045/    14FE :                     ; Related to 'ERROR' are the following: 'QWHAT' saves text
+    1046/    14FE :                     ; pointer in stack and get message "WHAT?". 'AWHAT' just get
+    1047/    14FE :                     ; message "WHAT?" and jump to 'ERROR'. 'QSORRY' and 'ASORRY'
+    1048/    14FE :                     ; do same kind of thing. 'QHOW' and 'AHOW' in the zero page
+    1049/    14FE :                     ; section also do this.
+    1050/    14FE :                     ;
+    1051/    14FE : CD 94 15            SETVAL: CALL 	TSTV  		;*** SETVAL ***
+    1052/    1501 : DA 3B 15             	JC 	QWHAT  	;"WHAT?" no variable
+    1053/    1504 : E5                   	PUSH 	H  		;push address of var.
+    1054/    1505 : (MACRO)              	tstc 	'=', SV1 		;pass "=" sign
+    1054/    1505 : CD C6 15                    CALL    TSTCH
+    1054/    1508 : 3D                          DB      '='
+    1054/    1509 : 0D                          DB      (SV1 - $ - 1) & 0FFH
+    1055/    150A : CD 66 13             	CALL 	EXPR  		;evaluate expr.
+    1056/    150D : 44                   	MOV 	B, H  		;value in BC now
+    1057/    150E : 4D                   	MOV 	C, L
+    1058/    150F : E1                   	POP 	H  		;get address
+    1059/    1510 : 71                   	MOV 	M, C  		;save value
+    1060/    1511 : 23                   	INX 	H
+    1061/    1512 : 70                   	MOV 	M, B
+    1062/    1513 : C9                   	RET
+    1063/    1514 :                     ;
+    1064/    1514 : CD 1A 15            FINISH:	CALL 	FIN  		;check end of command
+    1065/    1517 : C3 3B 15            SV1: 	JMP 	QWHAT  	;print "WHAT?" if wrong
+    1066/    151A :                     ;
+    1067/    151A : (MACRO)             FIN: 	tstc 	';', FI1 		;*** FIN ***
+    1067/    151A : CD C6 15                    CALL    TSTCH
+    1067/    151D : 3B                          DB      ';'
+    1067/    151E : 04                          DB      (FI1 - $ - 1) & 0FFH
+    1068/    151F : F1                   	POP 	PSW  		;";", purge RET address
+    1069/    1520 : C3 2C 11             	JMP 	RUNSML  	;continue same line
+    1070/    1523 : (MACRO)             FI1: 	tstc 	CR, FI2  	;not ";", is it CR?
+    1070/    1523 : CD C6 15                    CALL    TSTCH
+    1070/    1526 : 0D                          DB      CR
+    1070/    1527 : 04                          DB      (FI2 - $ - 1) & 0FFH
+    1071/    1528 : F1                   	POP 	PSW  		;yes, purge RET address
+    1072/    1529 : C3 1C 11             	JMP 	RUNNXL 	 ;run next line
+    1073/    152C : C9                  FI2: 	RET   			;else, return to caller
+    1074/    152D :                     ;
+    1075/    152D : 1A                  IGNBLK: LDAX 	D  		;*** IGNBLK ***
+    1076/    152E : FE 20                	CPI 	' '  		;ignore blanks
+    1077/    1530 : C0                   	RNZ  			;in text (where DE->)
+    1078/    1531 : 13                   	INX 	D  		;and return the first
+    1079/    1532 : C3 2D 15             	JMP 	IGNBLK  	;non-blank char. in A
+    1080/    1535 :                     ;
+    1081/    1535 : CD 2D 15            ENDCHK: CALL 	IGNBLK  	;*** ENDCHK ***
+    1082/    1538 : FE 0D                	CPI 	CR  		;end with CR?
+    1083/    153A : C8                   	RZ   			;ok, else say: "WHAT?"
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 20 - 6/12/2014 10:42:54
+
+
+    1084/    153B :                     ;
+    1085/    153B : D5                  QWHAT:	PUSH 	D  		;*** QWHAT ***
+    1086/    153C : 11 4D 10            AWHAT:	LXI 	D, WHAT  	;*** AWHAT ***
+    1087/    153F : CD A3 17            ERROR:	CALL 	CRLF
+    1088/    1542 : CD 70 16             	CALL 	PRTSTG  	;print error message
+    1089/    1545 : 2A 37 20             	LHLD 	CURRNT  	;get current line #
+    1090/    1548 : E5                   	PUSH 	H
+    1091/    1549 : 7E                   	MOV 	A, M  		;check the value
+    1092/    154A : 23                   	INX 	H
+    1093/    154B : B6                   	ORA 	M
+    1094/    154C : D1                   	POP 	D
+    1095/    154D : CA 26 10             	JZ 	TELL  		;if zero, just restart
+    1096/    1550 : 7E                   	MOV 	A, M  		;if negative
+    1097/    1551 : B7                   	ORA 	A
+    1098/    1552 : FA EC 12             	JM 	INPERR  	;redo input
+    1099/    1555 : CD FD 16             	CALL 	PRTLN  		;else print the line
+    1100/    1558 : C1                   	POP 	B
+    1101/    1559 : 41                   	MOV 	B, C
+    1102/    155A : CD AE 16             	CALL 	PRTCHS
+    1103/    155D : 3E 3F                	MVI 	A, '?'  		;print a "?"
+    1104/    155F : CD A5 17             	CALL 	OUTCH
+    1105/    1562 : CD 70 16             	CALL 	PRTSTG  	;line
+    1106/    1565 : C3 26 10             	JMP 	TELL  		;then restart
+    1107/    1568 : D5                  QSORRY: PUSH 	D  		;*** QSORRY ***
+    1108/    1569 : 11 58 10            ASORRY: LXI 	D, SORRY 	;*** ASORRY ***
+    1109/    156C : C3 3F 15             	JMP 	ERROR
+    1110/    156F :                     ;
+    1111/    156F :                     ;---------------------------------------------------------------
+    1112/    156F :                     ;
+    1113/    156F :                     ; *** FNDLN (& friends) ***
+    1114/    156F :                     ;
+    1115/    156F :                     ; 'FNDLN' finds a line with a given line # (in HL) in the text
+    1116/    156F :                     ; save area. DE is used as the text pointer. If the line is
+    1117/    156F :                     ; found, DE will point to the beginning of that line (i.e., the
+    1118/    156F :                     ; low byte of the line #), and flags are NC & Z. If that line is
+    1119/    156F :                     ; not there and a line with a higher line # is found, DE points
+    1120/    156F :                     ; to there and flags are NC & NZ. If we reached the end of text
+    1121/    156F :                     ; save area and cannot find the line, flags are C & NZ. 'FNDLN'
+    1122/    156F :                     ; will initialize DE to the beginning of the text save area to
+    1123/    156F :                     ; start the search. Some other entries of this routine will not
+    1124/    156F :                     ; initialize DE and do the search. 'FNDLP' will start with DE
+    1125/    156F :                     ; and search for the line #. 'FNDNXT' will bump DE by 2, find
+    1126/    156F :                     ; a CR and then start search. 'FNDSKP' use DE to find a CR,
+    1127/    156F :                     ; and then start search.
+    1128/    156F :                     ;
+    1129/    156F : 7C                  FNDLN:	MOV 	A, H  		;*** FNDLN ***
+    1130/    1570 : B7                   	ORA 	A  		;check sign of HL
+    1131/    1571 : FA 04 16             	JM 	QHOW  		;it cannot be -
+    1132/    1574 : 11 02 21             	LXI 	D, TEXT  	;init. text pointer
+    1133/    1577 :                     ;
+    1134/    1577 : 13                  FNDLP: 	INX 	D  		;is it EOT mark?
+    1135/    1578 : 1A                   	LDAX 	D
+    1136/    1579 : 1B                   	DCX 	D
+    1137/    157A : 87                   	ADD 	A
+    1138/    157B : D8                   	RC   			;C, NZ passed. end.
+    1139/    157C : 1A                   	LDAX 	D  		;we did not, get byte 1
+    1140/    157D : 95                   	SUB 	L  		;is this the line?
+    1141/    157E : 47                   	MOV 	B, A  		;compare low order
+    1142/    157F : 13                   	INX 	D
+    1143/    1580 : 1A                   	LDAX 	D  		;get byte 2
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 21 - 6/12/2014 10:42:54
+
+
+    1144/    1581 : 9C                   	SBB 	H  		;compare high order
+    1145/    1582 : DA 89 15             	JC 	FL1  		;no, not there yet
+    1146/    1585 : 1B                   	DCX 	D  		;else we either found
+    1147/    1586 : B0                   	ORA 	B  		;it, or it is not there
+    1148/    1587 : C9                   	RET   			;NC, Z=found; NC, NZ=no
+    1149/    1588 :                     ;
+    1150/    1588 : 13                  FNDNXT: INX 	D  		;find next line
+    1151/    1589 : 13                  FL1: 	INX 	D  		;just passed byte 1 & 2
+    1152/    158A :                     ;
+    1153/    158A : 1A                  FNDSKP: LDAX 	D  		;*** FNDSKP ***
+    1154/    158B : FE 0D                	CPI 	CR  		;try to find CR
+    1155/    158D : C2 89 15             	JNZ 	FL1  		;keep looking
+    1156/    1590 : 13                   	INX 	D  		;found CR, skip over
+    1157/    1591 : C3 77 15             	JMP 	FNDLP  		;check if end of text
+    1158/    1594 :                     ;
+    1159/    1594 : CD 2D 15            TSTV: 	CALL 	IGNBLK  	;*** TSTV ***
+    1160/    1597 : D6 40                	SUI 	'@'  		;test variables
+    1161/    1599 : D8                   	RC   			;C=not a variable
+    1162/    159A : C2 B6 15             	JNZ 	TV1  		;not "@" array
+    1163/    159D : 13                   	INX 	D  		;it is the "@" array
+    1164/    159E : CD 65 14             	CALL 	PARN  		;@ should be followed
+    1165/    15A1 : 29                   	DAD 	H  		;by (EXPR) as its index
+    1166/    15A2 : DA 04 16             	JC 	QHOW  		;is index too big?
+    1167/    15A5 : D5                  TSTB: 	PUSH 	D  		;will it fit?
+    1168/    15A6 : EB                   	XCHG
+    1169/    15A7 : CD AC 14             	CALL 	SIZE  		;find size of free
+    1170/    15AA : CD F8 14             	CALL 	COMP  		;and check that
+    1171/    15AD : DA 69 15             	JC 	ASORRY  	;if not, say: "SORRY"
+    1172/    15B0 : CD 6A 16             	CALL 	LOCR  		;if fits, get address
+    1173/    15B3 : 19                   	DAD 	D  		;of @(EXPR) and put it
+    1174/    15B4 : D1                   	POP 	D  		;in HL
+    1175/    15B5 : C9                   	RET   			;C flag is cleared
+    1176/    15B6 : FE 1B               TV1: 	CPI 	27  		;not @, is it A to Z?
+    1177/    15B8 : 3F                   	CMC   			;if not return C flag
+    1178/    15B9 : D8                   	RC
+    1179/    15BA : 13                   	INX 	D  		;if A through Z
+    1180/    15BB : 21 01 20             	LXI 	H, VARBGN-2
+    1181/    15BE : 07                   	RLC   			;HL->variable
+    1182/    15BF : 85                   	ADD 	L  		;return
+    1183/    15C0 : 6F                   	MOV 	L, A  		;with C flag cleared
+    1184/    15C1 : 3E 00                	MVI 	A, 0
+    1185/    15C3 : 8C                   	ADC 	H
+    1186/    15C4 : 67                   	MOV 	H, A
+    1187/    15C5 : C9                   	RET
+    1188/    15C6 :                     ;
+    1189/    15C6 :                     ;---------------------------------------------------------------
+    1190/    15C6 :                     ;
+    1191/    15C6 :                     ; *** TSTCH *** TSTNUM ***
+    1192/    15C6 :                     ;
+    1193/    15C6 :                     ; 'TSTCH' is used to test non-blank character in the text
+    1194/    15C6 :                     ; (pointed by DE) against the character that follows the call.
+    1195/    15C6 :                     ; If they do not match, n bytes of code will be skipped over,
+    1196/    15C6 :                     ; where n is between 0 and 255 and is stored in the second byte
+    1197/    15C6 :                     ; following the call.
+    1198/    15C6 :                     ;
+    1199/    15C6 :                     ; 'TSTNUM' is used to chack wether the text (pointed by DE) is a
+    1200/    15C6 :                     ; number. If a number is found, B will be non-zero and HL will
+    1201/    15C6 :                     ; contain the value (in binary) of the number, else B and HL
+    1202/    15C6 :                     ; are 0.
+    1203/    15C6 :                     ;
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 22 - 6/12/2014 10:42:54
+
+
+    1204/    15C6 : E3                  TSTCH: XTHL   			;*** TSTCH ***
+    1205/    15C7 : CD 2D 15             	CALL 	IGNBLK  	;ignore leading blanks
+    1206/    15CA : BE                   	CMP 	M  		;and test the character
+    1207/    15CB : 23                   	INX 	H  		;compare the byte that
+    1208/    15CC : CA D6 15             	JZ 	TC1  		;follows the call inst.
+    1209/    15CF : C5                   	PUSH 	B  		;with the text (DE->)
+    1210/    15D0 : 4E                   	MOV 	C, M  		;if not =, add the 2nd
+    1211/    15D1 : 06 00                	MVI 	B, 0  		;byte that follows the
+    1212/    15D3 : 09                   	DAD 	B  		;call to the old PC
+    1213/    15D4 : C1                   	POP 	B  		;i.e., do a relative
+    1214/    15D5 : 1B                   	DCX 	D  		;jump if not =
+    1215/    15D6 : 13                  TC1: 	INX 	D  		;if =, skip those bytes
+    1216/    15D7 : 23                   	INX 	H  		;and continue
+    1217/    15D8 : E3                   	XTHL
+    1218/    15D9 : C9                   	RET
+    1219/    15DA :                     ;
+    1220/    15DA : 21 00 00            TSTNUM: LXI 	H, 0  		;*** TSTNUM ***
+    1221/    15DD : 44                   	MOV 	B, H  		;test if the text is
+    1222/    15DE : CD 2D 15             	CALL 	IGNBLK  	;a number
+    1223/    15E1 : FE 30               TN1: 	CPI 	'0'  		;if not, return 0 in
+    1224/    15E3 : D8                   	RC   			;B and HL
+    1225/    15E4 : FE 3A                	CPI 	03AH  		;if numbers, convert
+    1226/    15E6 : D0                   	RNC   			;to binary in HL and
+    1227/    15E7 : 3E F0                	MVI 	A, 0F0H  	;set B to # of digits
+    1228/    15E9 : A4                   	ANA 	H  		;if H>255, there is no
+    1229/    15EA : C2 04 16             	JNZ 	QHOW  		;room for next digit
+    1230/    15ED : 04                   	INR 	B  		;B counts # of digits
+    1231/    15EE : C5                   	PUSH 	B
+    1232/    15EF : 44                   	MOV 	B, H  		;HL=10*HL+(new digit)
+    1233/    15F0 : 4D                   	MOV 	C, L
+    1234/    15F1 : 29                   	DAD 	H  		;where 10* is done by
+    1235/    15F2 : 29                   	DAD 	H  		;shift and add
+    1236/    15F3 : 09                   	DAD 	B
+    1237/    15F4 : 29                   	DAD 	H
+    1238/    15F5 : 1A                   	LDAX 	D  		;and (digit) is from
+    1239/    15F6 : 13                   	INX 	D  		;stripping the ASCII
+    1240/    15F7 : E6 0F                	ANI 	0FH  		;code
+    1241/    15F9 : 85                   	ADD 	L
+    1242/    15FA : 6F                   	MOV 	L, A
+    1243/    15FB : 3E 00                	MVI 	A, 0
+    1244/    15FD : 8C                   	ADC 	H
+    1245/    15FE : 67                   	MOV 	H, A
+    1246/    15FF : C1                   	POP 	B
+    1247/    1600 : 1A                   	LDAX 	D  		;do this digit after
+    1248/    1601 : F2 E1 15             	JP 	TN1  		;digit. S say overflow
+    1249/    1604 : D5                  QHOW: 	PUSH 	D  		;*** QHOW ***
+    1250/    1605 : 11 53 10            AHOW: 	LXI 	D, HOW  	;*** AHOW ***
+    1251/    1608 : C3 3F 15             	JMP 	ERROR
+    1252/    160B :                     ;
+    1253/    160B :                     ;---------------------------------------------------------------
+    1254/    160B :                     ;
+    1255/    160B :                     ; *** MVUP *** MVDOWN *** POPA *** & PUSHA ***
+    1256/    160B :                     ;
+    1257/    160B :                     ; 'MVUP' moves a block up from where DE-> to where BC-> until
+    1258/    160B :                     ; DE = HL.
+    1259/    160B :                     ;
+    1260/    160B :                     ; 'MVDOWN' moves a block down from where DE-> to where HL->
+    1261/    160B :                     ; until DE = BC.
+    1262/    160B :                     ;
+    1263/    160B :                     ; 'POPA' restores the 'FOR' loop variable save area from the
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 23 - 6/12/2014 10:42:54
+
+
+    1264/    160B :                     ; stack
+    1265/    160B :                     ;
+    1266/    160B :                     ; 'PUSHA' stacks the 'FOR' loop variable save area into the
+    1267/    160B :                     ; stack.
+    1268/    160B :                     ;
+    1269/    160B : CD F8 14            MVUP: 	CALL 	COMP  		;*** MVUP ***
+    1270/    160E : C8                   	RZ   			;DE = HL, return
+    1271/    160F : 1A                   	LDAX 	D  		;get one byte
+    1272/    1610 : 02                   	STAX 	B  		;move it
+    1273/    1611 : 13                   	INX 	D  		;increase both pointers
+    1274/    1612 : 03                   	INX 	B
+    1275/    1613 : C3 0B 16             	JMP 	MVUP  		;until done
+    1276/    1616 :                     ;
+    1277/    1616 : 78                  MVDOWN: MOV 	A, B  		;*** MVDOWN ***
+    1278/    1617 : 92                   	SUB 	D  		;test if DE = BC
+    1279/    1618 : C2 1E 16             	JNZ 	MD1  		;no, go move
+    1280/    161B : 79                   	MOV 	A, C  		;maybe, other byte?
+    1281/    161C : 93                   	SUB 	E
+    1282/    161D : C8                   	RZ   			;yes, return
+    1283/    161E : 1B                  MD1: 	DCX 	D  		;else move a byte
+    1284/    161F : 2B                   	DCX 	H  		;but first decrease
+    1285/    1620 : 1A                   	LDAX 	D  		;both pointers and
+    1286/    1621 : 77                   	MOV 	M, A  		;then do it
+    1287/    1622 : C3 16 16             	JMP 	MVDOWN  	;loop back
+    1288/    1625 :                     ;
+    1289/    1625 : C1                  POPA: 	POP 	B  		;BC = return address
+    1290/    1626 : E1                   	POP 	H  		;restore LOPVAR, but
+    1291/    1627 : 22 3D 20             	SHLD 	LOPVAR  	;=0 means no more
+    1292/    162A : 7C                   	MOV 	A, H
+    1293/    162B : B5                   	ORA 	L
+    1294/    162C : CA 3F 16             	JZ 	PP1  		;yep, go return
+    1295/    162F : E1                   	POP 	H  		;nop, restore others
+    1296/    1630 : 22 3F 20             	SHLD 	LOPINC
+    1297/    1633 : E1                   	POP 	H
+    1298/    1634 : 22 41 20             	SHLD 	LOPLMT
+    1299/    1637 : E1                   	POP 	H
+    1300/    1638 : 22 43 20             	SHLD 	LOPLN
+    1301/    163B : E1                   	POP 	H
+    1302/    163C : 22 45 20             	SHLD 	LOPPT
+    1303/    163F : C5                  PP1: 	PUSH 	B  		;BC = return address
+    1304/    1640 : C9                   	RET
+    1305/    1641 :                     ;
+    1306/    1641 : 21 D2 20            PUSHA:	LXI 	H, STKLMT 	;*** PUSHA ***
+    1307/    1644 : CD D9 14             	CALL 	CHGSGN
+    1308/    1647 : C1                   	POP 	B  		;BC = return address
+    1309/    1648 : 39                   	DAD 	SP  		;is stack near the top?
+    1310/    1649 : D2 68 15             	JNC 	QSORRY  	;yes, sorry for that.
+    1311/    164C : 2A 3D 20             	LHLD 	LOPVAR  	;esle, save loop var.s
+    1312/    164F : 7C                   	MOV 	A, H  		;but if lopvar is 0
+    1313/    1650 : B5                   	ORA 	L  		;that will be all
+    1314/    1651 : CA 67 16             	JZ 	PU1
+    1315/    1654 : 2A 45 20             	LHLD 	LOPPT  	;else, more to save
+    1316/    1657 : E5                   	PUSH 	H
+    1317/    1658 : 2A 43 20             	LHLD 	LOPLN
+    1318/    165B : E5                   	PUSH 	H
+    1319/    165C : 2A 41 20             	LHLD 	LOPLMT
+    1320/    165F : E5                   	PUSH 	H
+    1321/    1660 : 2A 3F 20             	LHLD 	LOPINC
+    1322/    1663 : E5                   	PUSH 	H
+    1323/    1664 : 2A 3D 20             	LHLD 	LOPVAR
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 24 - 6/12/2014 10:42:54
+
+
+    1324/    1667 : E5                  PU1: 	PUSH 	H
+    1325/    1668 : C5                   	PUSH 	B  		;BC = return address
+    1326/    1669 : C9                   	RET
+    1327/    166A : 2A 00 21            LOCR: 	LHLD 	TXTUNF
+    1328/    166D : 2B                   	DCX 	H
+    1329/    166E : 2B                   	DCX 	H
+    1330/    166F : C9                   	RET
+    1331/    1670 :                     ;
+    1332/    1670 :                     ;---------------------------------------------------------------
+    1333/    1670 :                     ;
+    1334/    1670 :                     ; *** PRTSTG *** *** QTSTG *** *** PRTNUM *** & PRTLN ***
+    1335/    1670 :                     ;
+    1336/    1670 :                     ; 'PRTSTG' prints a string pointed by DE. It stops printing and
+    1337/    1670 :                     ; returns to caller when either a CR is printed or when the next
+    1338/    1670 :                     ; byte is zero. Registers A and B are changed. Register DE
+    1339/    1670 :                     ; points to what follows the CR or to the zero.
+    1340/    1670 :                     ;
+    1341/    1670 :                     ; 'QTSTG' looks for up-arrow, single quote, or double-quote.
+    1342/    1670 :                     ; If none of these, return to caller. If up-arrow, output a
+    1343/    1670 :                     ; control character. If single or double quote, print the
+    1344/    1670 :                     ; string in the quote and demands a matching unquote.
+    1345/    1670 :                     ; After the printing, the next 3 bytes of the caller is
+    1346/    1670 :                     ; skipped over (usually a jump instruction).
+    1347/    1670 :                     ;
+    1348/    1670 :                     ; 'PRTNUM' prints the number in HL. Leading blanks are added
+    1349/    1670 :                     ; if needed to pad the number of spaces to the number in C.
+    1350/    1670 :                     ; Howewer, if the number of digits is larger than the number
+    1351/    1670 :                     ; in C, all digits are printed anyway. Negative sign is also
+    1352/    1670 :                     ; printed and counted in. Positive sign is not.
+    1353/    1670 :                     ;
+    1354/    1670 :                     ; 'PRTLN' finds a saved line, prints the line number and
+    1355/    1670 :                     ; a space.
+    1356/    1670 :                     ;
+    1357/    1670 : 97                  PRTSTG: SUB 	A  		;*** PRTSTG ***
+    1358/    1671 : 47                  PS1: 	MOV 	B, A
+    1359/    1672 : 1A                  PS2: 	LDAX 	D  		;get a character
+    1360/    1673 : 13                   	INX 	D  		;bump pointer
+    1361/    1674 : B8                   	CMP 	B  		;same as old A?
+    1362/    1675 : C8                   	RZ   			;yes, return
+    1363/    1676 : CD A5 17             	CALL 	OUTCH  	;else, print it
+    1364/    1679 : FE 0D                	CPI 	CR  		;was it a CR?
+    1365/    167B : C2 72 16             	JNZ 	PS2  		;no, next
+    1366/    167E : C9                   	RET   			;yes, return
+    1367/    167F :                     ;
+    1368/    167F : (MACRO)             QTSTG: tstc 	'"', QT3 	;*** QTSTG ***
+    1368/    167F : CD C6 15                    CALL    TSTCH
+    1368/    1682 : 22                          DB      '"'
+    1368/    1683 : 0F                          DB      (QT3 - $ - 1) & 0FFH
+    1369/    1684 : 3E 22                	MVI 	A, '"'  		;it is a " (double quote)
+    1370/    1686 : CD 71 16            QT1: 	CALL 	PS1  		;print until another
+    1371/    1689 : FE 0D               QT2: 	CPI 	CR  		;was last one a CR?
+    1372/    168B : E1                   	POP 	H  		;return address
+    1373/    168C : CA 1C 11             	JZ 	RUNNXL  	;was CR, run next line
+    1374/    168F : 23                   	INX 	H  		;skip 3 bytes on return
+    1375/    1690 : 23                   	INX 	H
+    1376/    1691 : 23                   	INX 	H
+    1377/    1692 : E9                   	PCHL   			;return
+    1378/    1693 : (MACRO)             QT3: 	tstc 	27H, QT4 	;is it a ' (single quote) ?
+    1378/    1693 : CD C6 15                    CALL    TSTCH
+    1378/    1696 : 27                          DB      27H
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 25 - 6/12/2014 10:42:54
+
+
+    1378/    1697 : 05                          DB      (QT4 - $ - 1) & 0FFH
+    1379/    1698 : 3E 27                	MVI 	A, 27H  		;yes, do same
+    1380/    169A : C3 86 16             	JMP 	QT1  		;as in "
+    1381/    169D : (MACRO)             QT4: 	tstc 	5EH, QT5 	;is it an up-arrow?
+    1381/    169D : CD C6 15                    CALL    TSTCH
+    1381/    16A0 : 5E                          DB      5EH
+    1381/    16A1 : 0B                          DB      (QT5 - $ - 1) & 0FFH
+    1382/    16A2 : 1A                   	LDAX 	D  		;yes, convert character
+    1383/    16A3 : EE 40                	XRI 	40H  		;to control-char.
+    1384/    16A5 : CD A5 17             	CALL 	OUTCH
+    1385/    16A8 : 1A                   	LDAX 	D  		;just in case it is a CR
+    1386/    16A9 : 13                   	INX 	D
+    1387/    16AA : C3 89 16             	JMP 	QT2
+    1388/    16AD : C9                  QT5: 	RET   			;none of the above
+    1389/    16AE : 7B                  PRTCHS: MOV 	A, E
+    1390/    16AF : B8                   	CMP 	B
+    1391/    16B0 : C8                   	RZ
+    1392/    16B1 : 1A                   	LDAX 	D
+    1393/    16B2 : CD A5 17             	CALL 	OUTCH
+    1394/    16B5 : 13                   	INX 	D
+    1395/    16B6 : C3 AE 16             	JMP 	PRTCHS
+    1396/    16B9 :                     ;
+    1397/    16B9 : =16B9H              PRTNUM	equ	$  		;*** PRTNUM ***
+    1398/    16B9 : 06 00               PN3: 	MVI 	B, 0  		;B=sign
+    1399/    16BB : CD D6 14             	CALL 	CHKSGN  	;check sign
+    1400/    16BE : F2 C4 16             	JP 	PN4  		;no sign
+    1401/    16C1 : 06 2D                	MVI 	B, '-'  		;B=sign
+    1402/    16C3 : 0D                   	DCR 	C  		;'-' takes space
+    1403/    16C4 : D5                  PN4: 	PUSH 	D
+    1404/    16C5 : 11 0A 00             	LXI 	D, 10  		;decimal
+    1405/    16C8 : D5                   	PUSH 	D  		;save as a flag
+    1406/    16C9 : 0D                   	DCR 	C  		;C=spaces
+    1407/    16CA : C5                   	PUSH 	B  		;save sign & space
+    1408/    16CB : CD B9 14            PN5: 	CALL 	DIVIDE  		;divide HL by 10
+    1409/    16CE : 78                   	MOV 	A, B  		;result O?
+    1410/    16CF : B1                   	ORA 	C
+    1411/    16D0 : CA DB 16             	JZ 	PN6  		;yes, we got all
+    1412/    16D3 : E3                   	XTHL   			;no, save remainder
+    1413/    16D4 : 2D                   	DCR 	L  		;and count space
+    1414/    16D5 : E5                   	PUSH 	H  		;HL is old BC
+    1415/    16D6 : 60                   	MOV 	H, B  		;move result to BC
+    1416/    16D7 : 69                   	MOV 	L, C
+    1417/    16D8 : C3 CB 16             	JMP 	PN5  		;and divide by 10
+    1418/    16DB : C1                  PN6: 	POP 	B  		;we got all digits in
+    1419/    16DC : 0D                  PN7: 	DCR 	C  		;the stack
+    1420/    16DD : 79                   	MOV 	A, C  		;look at space count
+    1421/    16DE : B7                   	ORA 	A
+    1422/    16DF : FA EA 16             	JM 	PN8  		;no leading blanks
+    1423/    16E2 : 3E 20                	MVI 	A, ' '  		;leading blanks
+    1424/    16E4 : CD A5 17             	CALL 	OUTCH
+    1425/    16E7 : C3 DC 16             	JMP 	PN7  		;more?
+    1426/    16EA : 78                  PN8: 	MOV 	A, B  		;print sign?
+    1427/    16EB : B7                   	ORA 	A
+    1428/    16EC : C4 A5 17             	CNZ 	OUTCH  	;maybe - or null
+    1429/    16EF : 5D                   	MOV 	E, L  		;last remainder in E
+    1430/    16F0 : 7B                  PN9: 	MOV 	A, E  		;check digit in E
+    1431/    16F1 : FE 0A                	CPI 	10  		;10 is flag for no more
+    1432/    16F3 : D1                   	POP 	D
+    1433/    16F4 : C8                   	RZ   			;if so, return
+    1434/    16F5 : C6 30                	ADI 	'0'  		;else, convert to ASCII
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 26 - 6/12/2014 10:42:54
+
+
+    1435/    16F7 : CD A5 17             	CALL 	OUTCH  	;and print the digit
+    1436/    16FA : C3 F0 16             	JMP 	PN9  		;go back for more
+    1437/    16FD :                     ;
+    1438/    16FD : 1A                  PRTLN: LDAX 	D  		;*** PRTLN ***
+    1439/    16FE : 6F                   	MOV 	L, A  		;low order line #
+    1440/    16FF : 13                   	INX 	D
+    1441/    1700 : 1A                   	LDAX 	D  		;high order
+    1442/    1701 : 67                  	MOV 	H, A
+    1443/    1702 : 13                   	INX 	D
+    1444/    1703 : 0E 04                	MVI 	C, 4  		;print 4 digit line #
+    1445/    1705 : CD B9 16             	CALL 	PRTNUM
+    1446/    1708 : 3E 20                	MVI 	A, ' '  		;followed by a blank
+    1447/    170A : CD A5 17             	CALL 	OUTCH
+    1448/    170D : C9                   	RET
+    1449/    170E :                     ;
+    1450/    170E : (MACRO)             TAB1: 	item 	"LIST", list 	;direct commands
+    1450/    170E : =>FALSE                     IF "LIST" == ""
+    1450/    170E :                                     DB      LIST >> 8 | 080H
+    1450/    170E :                                     DB      LIST & 0FFH
+    1450/    170E : =>TRUE                      ELSE
+    1450/    170E : 4C 49 53 54                         DB      "LIST"
+    1450/    1712 : 91                                  DB      LIST >> 8 | 080H
+    1450/    1713 : 46                                  DB      LIST & 0FFH
+    1450/    1714 : [1450]                      ENDIF
+    1451/    1714 : (MACRO)              	item 	"NEW", new
+    1451/    1714 : =>FALSE                     IF "NEW" == ""
+    1451/    1714 :                                     DB      NEW >> 8 | 080H
+    1451/    1714 :                                     DB      NEW & 0FFH
+    1451/    1714 : =>TRUE                      ELSE
+    1451/    1714 : 4E 45 57                            DB      "NEW"
+    1451/    1717 : 91                                  DB      NEW >> 8 | 080H
+    1451/    1718 : 0A                                  DB      NEW & 0FFH
+    1451/    1719 : [1451]                      ENDIF
+    1452/    1719 : (MACRO)              	item 	"RUN", run
+    1452/    1719 : =>FALSE                     IF "RUN" == ""
+    1452/    1719 :                                     DB      RUN >> 8 | 080H
+    1452/    1719 :                                     DB      RUN & 0FFH
+    1452/    1719 : =>TRUE                      ELSE
+    1452/    1719 : 52 55 4E                            DB      "RUN"
+    1452/    171C : 91                                  DB      RUN >> 8 | 080H
+    1452/    171D : 16                                  DB      RUN & 0FFH
+    1452/    171E : [1452]                      ENDIF
+    1453/    171E : (MACRO)              	item 	"SID", sid 	;added by ROCHE
+    1453/    171E : =>FALSE                     IF "SID" == ""
+    1453/    171E :                                     DB      SID >> 8 | 080H
+    1453/    171E :                                     DB      SID & 0FFH
+    1453/    171E : =>TRUE                      ELSE
+    1453/    171E : 53 49 44                            DB      "SID"
+    1453/    1721 : 90                                  DB      SID >> 8 | 080H
+    1453/    1722 : 2F                                  DB      SID & 0FFH
+    1453/    1723 : [1453]                      ENDIF
+    1454/    1723 :                     ;
+    1455/    1723 : (MACRO)             TAB2: 	item 	"NEXT", next 	;direct/statement
+    1455/    1723 : =>FALSE                     IF "NEXT" == ""
+    1455/    1723 :                                     DB      NEXT >> 8 | 080H
+    1455/    1723 :                                     DB      NEXT & 0FFH
+    1455/    1723 : =>TRUE                      ELSE
+    1455/    1723 : 4E 45 58 54                         DB      "NEXT"
+    1455/    1727 : 92                                  DB      NEXT >> 8 | 080H
+    1455/    1728 : 74                                  DB      NEXT & 0FFH
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 27 - 6/12/2014 10:42:54
+
+
+    1455/    1729 : [1455]                      ENDIF
+    1456/    1729 : (MACRO)              	item 	"LET", let
+    1456/    1729 : =>FALSE                     IF "LET" == ""
+    1456/    1729 :                                     DB      LET >> 8 | 080H
+    1456/    1729 :                                     DB      LET & 0FFH
+    1456/    1729 : =>TRUE                      ELSE
+    1456/    1729 : 4C 45 54                            DB      "LET"
+    1456/    172C : 93                                  DB      LET >> 8 | 080H
+    1456/    172D : 58                                  DB      LET & 0FFH
+    1456/    172E : [1456]                      ENDIF
+    1457/    172E : (MACRO)              	item 	"IF", iff
+    1457/    172E : =>FALSE                     IF "IF" == ""
+    1457/    172E :                                     DB      IFF >> 8 | 080H
+    1457/    172E :                                     DB      IFF & 0FFH
+    1457/    172E : =>TRUE                      ELSE
+    1457/    172E : 49 46                               DB      "IF"
+    1457/    1730 : 92                                  DB      IFF >> 8 | 080H
+    1457/    1731 : DB                                  DB      IFF & 0FFH
+    1457/    1732 : [1457]                      ENDIF
+    1458/    1732 : (MACRO)              	item 	"GOTO", goto
+    1458/    1732 : =>FALSE                     IF "GOTO" == ""
+    1458/    1732 :                                     DB      GOTO >> 8 | 080H
+    1458/    1732 :                                     DB      GOTO & 0FFH
+    1458/    1732 : =>TRUE                      ELSE
+    1458/    1732 : 47 4F 54 4F                         DB      "GOTO"
+    1458/    1736 : 91                                  DB      GOTO >> 8 | 080H
+    1458/    1737 : 35                                  DB      GOTO & 0FFH
+    1458/    1738 : [1458]                      ENDIF
+    1459/    1738 : (MACRO)              	item 	"GOSUB",gosub
+    1459/    1738 : =>FALSE                     IF "GOSUB" == ""
+    1459/    1738 :                                     DB      GOSUB >> 8 | 080H
+    1459/    1738 :                                     DB      GOSUB & 0FFH
+    1459/    1738 : =>TRUE                      ELSE
+    1459/    1738 : 47 4F 53 55 42                      DB      "GOSUB"
+    1459/    173D : 91                                  DB      GOSUB >> 8 | 080H
+    1459/    173E : D0                                  DB      GOSUB & 0FFH
+    1459/    173F : [1459]                      ENDIF
+    1460/    173F : (MACRO)              	item 	"RETURN",return
+    1460/    173F : =>FALSE                     IF "RETURN" == ""
+    1460/    173F :                                     DB      RETURN >> 8 | 080H
+    1460/    173F :                                     DB      RETURN & 0FFH
+    1460/    173F : =>TRUE                      ELSE
+    1460/    173F : 52 45 54 55 52 4E                   DB      "RETURN"
+    1460/    1745 : 91                                  DB      RETURN >> 8 | 080H
+    1460/    1746 : F2                                  DB      RETURN & 0FFH
+    1460/    1747 : [1460]                      ENDIF
+    1461/    1747 : (MACRO)              	item 	"REM", rem
+    1461/    1747 : =>FALSE                     IF "REM" == ""
+    1461/    1747 :                                     DB      REM >> 8 | 080H
+    1461/    1747 :                                     DB      REM & 0FFH
+    1461/    1747 : =>TRUE                      ELSE
+    1461/    1747 : 52 45 4D                            DB      "REM"
+    1461/    174A : 92                                  DB      REM >> 8 | 080H
+    1461/    174B : D5                                  DB      REM & 0FFH
+    1461/    174C : [1461]                      ENDIF
+    1462/    174C : (MACRO)              	item 	"FOR", for
+    1462/    174C : =>FALSE                     IF "FOR" == ""
+    1462/    174C :                                     DB      FOR >> 8 | 080H
+    1462/    174C :                                     DB      FOR & 0FFH
+    1462/    174C : =>TRUE                      ELSE
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 28 - 6/12/2014 10:42:54
+
+
+    1462/    174C : 46 4F 52                            DB      "FOR"
+    1462/    174F : 92                                  DB      FOR >> 8 | 080H
+    1462/    1750 : 0D                                  DB      FOR & 0FFH
+    1462/    1751 : [1462]                      ENDIF
+    1463/    1751 : (MACRO)              	item 	"INPUT",input
+    1463/    1751 : =>FALSE                     IF "INPUT" == ""
+    1463/    1751 :                                     DB      INPUT >> 8 | 080H
+    1463/    1751 :                                     DB      INPUT & 0FFH
+    1463/    1751 : =>TRUE                      ELSE
+    1463/    1751 : 49 4E 50 55 54                      DB      "INPUT"
+    1463/    1756 : 92                                  DB      INPUT >> 8 | 080H
+    1463/    1757 : F6                                  DB      INPUT & 0FFH
+    1463/    1758 : [1463]                      ENDIF
+    1464/    1758 : (MACRO)              	item 	"PRINT",print
+    1464/    1758 : =>FALSE                     IF "PRINT" == ""
+    1464/    1758 :                                     DB      PRINT >> 8 | 080H
+    1464/    1758 :                                     DB      PRINT & 0FFH
+    1464/    1758 : =>TRUE                      ELSE
+    1464/    1758 : 50 52 49 4E 54                      DB      "PRINT"
+    1464/    175D : 91                                  DB      PRINT >> 8 | 080H
+    1464/    175E : 76                                  DB      PRINT & 0FFH
+    1464/    175F : [1464]                      ENDIF
+    1465/    175F : (MACRO)              	item 	"STOP", stop
+    1465/    175F : =>FALSE                     IF "STOP" == ""
+    1465/    175F :                                     DB      STOP >> 8 | 080H
+    1465/    175F :                                     DB      STOP & 0FFH
+    1465/    175F : =>TRUE                      ELSE
+    1465/    175F : 53 54 4F 50                         DB      "STOP"
+    1465/    1763 : 91                                  DB      STOP >> 8 | 080H
+    1465/    1764 : 10                                  DB      STOP & 0FFH
+    1465/    1765 : [1465]                      ENDIF
+    1466/    1765 : (MACRO)              	item 	"", morec
+    1466/    1765 : =>TRUE                      IF "" == ""
+    1466/    1765 : 97                                  DB      MOREC >> 8 | 080H
+    1466/    1766 : 67                                  DB      MOREC & 0FFH
+    1466/    1767 : =>FALSE                     ELSE
+    1466/    1767 :                                     DB      ""
+    1466/    1767 :                                     DB      MOREC >> 8 | 080H
+    1466/    1767 :                                     DB      MOREC & 0FFH
+    1466/    1767 : [1466]                      ENDIF
+    1467/    1767 :                     ;   				;************************
+    1468/    1767 : C3 52 13            MOREC: JMP 	DEFLT  		;*** JMP USER-COMMAND ***
+    1469/    176A :                     ;    				;************************
+    1470/    176A : (MACRO)             TAB3: 	item 	"RND", rnd 	;functions
+    1470/    176A : =>FALSE                     IF "RND" == ""
+    1470/    176A :                                     DB      RND >> 8 | 080H
+    1470/    176A :                                     DB      RND & 0FFH
+    1470/    176A : =>TRUE                      ELSE
+    1470/    176A : 52 4E 44                            DB      "RND"
+    1470/    176D : 94                                  DB      RND >> 8 | 080H
+    1470/    176E : 76                                  DB      RND & 0FFH
+    1470/    176F : [1470]                      ENDIF
+    1471/    176F : (MACRO)              	item 	"ABS", abs
+    1471/    176F : =>FALSE                     IF "ABS" == ""
+    1471/    176F :                                     DB      ABS >> 8 | 080H
+    1471/    176F :                                     DB      ABS & 0FFH
+    1471/    176F : =>TRUE                      ELSE
+    1471/    176F : 41 42 53                            DB      "ABS"
+    1471/    1772 : 94                                  DB      ABS >> 8 | 080H
+    1471/    1773 : A3                                  DB      ABS & 0FFH
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 29 - 6/12/2014 10:42:54
+
+
+    1471/    1774 : [1471]                      ENDIF
+    1472/    1774 : (MACRO)              	item 	"SIZE", size
+    1472/    1774 : =>FALSE                     IF "SIZE" == ""
+    1472/    1774 :                                     DB      SIZE >> 8 | 080H
+    1472/    1774 :                                     DB      SIZE & 0FFH
+    1472/    1774 : =>TRUE                      ELSE
+    1472/    1774 : 53 49 5A 45                         DB      "SIZE"
+    1472/    1778 : 94                                  DB      SIZE >> 8 | 080H
+    1472/    1779 : AC                                  DB      SIZE & 0FFH
+    1472/    177A : [1472]                      ENDIF
+    1473/    177A : (MACRO)              	item 	"", moref
+    1473/    177A : =>TRUE                      IF "" == ""
+    1473/    177A : 97                                  DB      MOREF >> 8 | 080H
+    1473/    177B : 7C                                  DB      MOREF & 0FFH
+    1473/    177C : =>FALSE                     ELSE
+    1473/    177C :                                     DB      ""
+    1473/    177C :                                     DB      MOREF >> 8 | 080H
+    1473/    177C :                                     DB      MOREF & 0FFH
+    1473/    177C : [1473]                      ENDIF
+    1474/    177C :                     ;    				;*************************
+    1475/    177C : C3 54 14            MOREF: JMP 	NOTF  		;*** JMP USER-FUNCTION ***
+    1476/    177F :                         				;*************************
+    1477/    177F : (MACRO)             TAB4: 	item 	"TO", FR1 	;"FOR" command
+    1477/    177F : =>FALSE                     IF "TO" == ""
+    1477/    177F :                                     DB      FR1 >> 8 | 080H
+    1477/    177F :                                     DB      FR1 & 0FFH
+    1477/    177F : =>TRUE                      ELSE
+    1477/    177F : 54 4F                               DB      "TO"
+    1477/    1781 : 92                                  DB      FR1 >> 8 | 080H
+    1477/    1782 : 1D                                  DB      FR1 & 0FFH
+    1477/    1783 : [1477]                      ENDIF
+    1478/    1783 : (MACRO)              	item 	"", QWHAT
+    1478/    1783 : =>TRUE                      IF "" == ""
+    1478/    1783 : 95                                  DB      QWHAT >> 8 | 080H
+    1478/    1784 : 3B                                  DB      QWHAT & 0FFH
+    1478/    1785 : =>FALSE                     ELSE
+    1478/    1785 :                                     DB      ""
+    1478/    1785 :                                     DB      QWHAT >> 8 | 080H
+    1478/    1785 :                                     DB      QWHAT & 0FFH
+    1478/    1785 : [1478]                      ENDIF
+    1479/    1785 :                     ;
+    1480/    1785 : (MACRO)             TAB5: 	item 	"STEP", FR2 	;"FOR" command
+    1480/    1785 : =>FALSE                     IF "STEP" == ""
+    1480/    1785 :                                     DB      FR2 >> 8 | 080H
+    1480/    1785 :                                     DB      FR2 & 0FFH
+    1480/    1785 : =>TRUE                      ELSE
+    1480/    1785 : 53 54 45 50                         DB      "STEP"
+    1480/    1789 : 92                                  DB      FR2 >> 8 | 080H
+    1480/    178A : 29                                  DB      FR2 & 0FFH
+    1480/    178B : [1480]                      ENDIF
+    1481/    178B : (MACRO)              	item 	"", FR3
+    1481/    178B : =>TRUE                      IF "" == ""
+    1481/    178B : 92                                  DB      FR3 >> 8 | 080H
+    1481/    178C : 2F                                  DB      FR3 & 0FFH
+    1481/    178D : =>FALSE                     ELSE
+    1481/    178D :                                     DB      ""
+    1481/    178D :                                     DB      FR3 >> 8 | 080H
+    1481/    178D :                                     DB      FR3 & 0FFH
+    1481/    178D : [1481]                      ENDIF
+    1482/    178D :                     ;
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 30 - 6/12/2014 10:42:54
+
+
+    1483/    178D : (MACRO)             TAB6: 	item 	">=", XPR1 	;relation operators
+    1483/    178D : =>FALSE                     IF ">=" == ""
+    1483/    178D :                                     DB      XPR1 >> 8 | 080H
+    1483/    178D :                                     DB      XPR1 & 0FFH
+    1483/    178D : =>TRUE                      ELSE
+    1483/    178D : 3E 3D                               DB      ">="
+    1483/    178F : 93                                  DB      XPR1 >> 8 | 080H
+    1483/    1790 : 70                                  DB      XPR1 & 0FFH
+    1483/    1791 : [1483]                      ENDIF
+    1484/    1791 : (MACRO)              	item 	"#", XPR2
+    1484/    1791 : =>FALSE                     IF "#" == ""
+    1484/    1791 :                                     DB      XPR2 >> 8 | 080H
+    1484/    1791 :                                     DB      XPR2 & 0FFH
+    1484/    1791 : =>TRUE                      ELSE
+    1484/    1791 : 23                                  DB      "#"
+    1484/    1792 : 93                                  DB      XPR2 >> 8 | 080H
+    1484/    1793 : 76                                  DB      XPR2 & 0FFH
+    1484/    1794 : [1484]                      ENDIF
+    1485/    1794 : (MACRO)              	item 	">", XPR3
+    1485/    1794 : =>FALSE                     IF ">" == ""
+    1485/    1794 :                                     DB      XPR3 >> 8 | 080H
+    1485/    1794 :                                     DB      XPR3 & 0FFH
+    1485/    1794 : =>TRUE                      ELSE
+    1485/    1794 : 3E                                  DB      ">"
+    1485/    1795 : 93                                  DB      XPR3 >> 8 | 080H
+    1485/    1796 : 7C                                  DB      XPR3 & 0FFH
+    1485/    1797 : [1485]                      ENDIF
+    1486/    1797 : (MACRO)              	item 	"=", XPR5
+    1486/    1797 : =>FALSE                     IF "=" == ""
+    1486/    1797 :                                     DB      XPR5 >> 8 | 080H
+    1486/    1797 :                                     DB      XPR5 & 0FFH
+    1486/    1797 : =>TRUE                      ELSE
+    1486/    1797 : 3D                                  DB      "="
+    1486/    1798 : 93                                  DB      XPR5 >> 8 | 080H
+    1486/    1799 : 8B                                  DB      XPR5 & 0FFH
+    1486/    179A : [1486]                      ENDIF
+    1487/    179A : (MACRO)              	item 	"<=", XPR4
+    1487/    179A : =>FALSE                     IF "<=" == ""
+    1487/    179A :                                     DB      XPR4 >> 8 | 080H
+    1487/    179A :                                     DB      XPR4 & 0FFH
+    1487/    179A : =>TRUE                      ELSE
+    1487/    179A : 3C 3D                               DB      "<="
+    1487/    179C : 93                                  DB      XPR4 >> 8 | 080H
+    1487/    179D : 83                                  DB      XPR4 & 0FFH
+    1487/    179E : [1487]                      ENDIF
+    1488/    179E : (MACRO)              	item 	"<", XPR6
+    1488/    179E : =>FALSE                     IF "<" == ""
+    1488/    179E :                                     DB      XPR6 >> 8 | 080H
+    1488/    179E :                                     DB      XPR6 & 0FFH
+    1488/    179E : =>TRUE                      ELSE
+    1488/    179E : 3C                                  DB      "<"
+    1488/    179F : 93                                  DB      XPR6 >> 8 | 080H
+    1488/    17A0 : 91                                  DB      XPR6 & 0FFH
+    1488/    17A1 : [1488]                      ENDIF
+    1489/    17A1 : (MACRO)              	item 	"", XPR7
+    1489/    17A1 : =>TRUE                      IF "" == ""
+    1489/    17A1 : 93                                  DB      XPR7 >> 8 | 080H
+    1489/    17A2 : 97                                  DB      XPR7 & 0FFH
+    1489/    17A3 : =>FALSE                     ELSE
+    1489/    17A3 :                                     DB      ""
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 31 - 6/12/2014 10:42:54
+
+
+    1489/    17A3 :                                     DB      XPR7 >> 8 | 080H
+    1489/    17A3 :                                     DB      XPR7 & 0FFH
+    1489/    17A3 : [1489]                      ENDIF
+    1490/    17A3 :                     ;
+    1491/    17A3 : =17A3H              RANEND EQU 	$
+    1492/    17A3 :                     ;
+    1493/    17A3 :                     ;PATB original code>
+    1494/    17A3 :                     ;---------------------------------------------------------------
+    1495/    17A3 :                     ;
+    1496/    17A3 :                     ; *** INPUT OUTPUT ROUTINES ***
+    1497/    17A3 :                     ;
+    1498/    17A3 :                     ; User must verify and/or modify these routines
+    1499/    17A3 :                     ;
+    1500/    17A3 :                     ;---------------------------------------------------------------
+    1501/    17A3 :                     ;
+    1502/    17A3 :                     ; *** CRLF *** OUTCH ***
+    1503/    17A3 :                     ;
+    1504/    17A3 :                     ; 'CRLF' will output a CR. Only A & flags may change at return.
+    1505/    17A3 :                     ;
+    1506/    17A3 :                     ; 'OUTCH' will output the character in A. If the character is CR,
+    1507/    17A3 :                     ; it will also outut a LF and three nulls. Flags may change at
+    1508/    17A3 :                     ; return. Others registers do not.
+    1509/    17A3 :                     ;
+    1510/    17A3 :                     ; *** CHKIO *** GETLN ***
+    1511/    17A3 :                     ;
+    1512/    17A3 :                     ; 'CHKIO' checks to see if there is any input. If no input,
+    1513/    17A3 :                     ; it returns with Z flag. If there is input, it further checks
+    1514/    17A3 :                     ; wether input is Control-C. If not Control-C, it returns the
+    1515/    17A3 :                     ; character in A with Z flag cleared. If input is Control-C,
+    1516/    17A3 :                     ; 'CHKIO' jumps to 'INIT' and will not return. Only A & flags
+    1517/    17A3 :                     ; may change at return.
+    1518/    17A3 :                     ;
+    1519/    17A3 :                     ; 'GETLN' reads a input line into 'BUFFER'. It first prompt the
+    1520/    17A3 :                     ; character in A (given by the caller), then it fills the buffer
+    1521/    17A3 :                     ; and echos. Back-space is used to delete the last character
+    1522/    17A3 :                     ; (if there is one). CR signals the end of the line, and cause
+    1523/    17A3 :                     ; 'GETLN' to return. When buffer is full, 'GETLN' will accept
+    1524/    17A3 :                     ; back-space or CR only and will ignore (and will not echo)
+    1525/    17A3 :                     ; other characters. After the input line is stored in the buffer
+    1526/    17A3 :                     ; two more bytes of FF are also stored and DE points to the
+    1527/    17A3 :                     ; last FF. A & flags are also changed at return.
+    1528/    17A3 :                     ;
+    1529/    17A3 : 3E 0D               CRLF: 	MVI 	A, 0DH  		;CR in A
+    1530/    17A5 :                     ;    				;***********************
+    1531/    17A5 : C3 E6 17            OUTCH:	JMP 	USEOUT  	;*** JMP USER-OUTPUT ***
+    1532/    17A8 :                     ;    				;***********************
+    1533/    17A8 : C3 FB 17            CHKIO: 	JMP 	USEINP  	;*** JMP USER-INPUT  ***
+    1534/    17AB :                     ;    				;***********************
+    1535/    17AB : 11 4A 20            GETLN: 	LXI 	D, BUFFER 	;*** MODIFY THIS *******
+    1536/    17AE :                     ;    				;***********************
+    1537/    17AE : CD A5 17            GL1: 	CALL 	OUTCH  	;prompt or echo
+    1538/    17B1 : CD A8 17            GL2: 	CALL 	CHKIO  		;get a character
+    1539/    17B4 : CA B1 17             	JZ 	GL2  		;wait for input
+    1540/    17B7 : FE 0A                	CPI 	LF
+    1541/    17B9 : CA B1 17             	JZ 	GL2
+    1542/    17BC : 12                  L3: 	STAX 	D  		;save char.
+    1543/    17BD : FE 08                	CPI 	08H  		;is it Back-Space?
+    1544/    17BF : C2 CD 17             	JNZ 	GL4  		;no, more tests
+    1545/    17C2 : 7B                   	MOV 	A, E  		;yes, delete?
+    1546/    17C3 :                     # 	CPI 	LOW BUFFER
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 32 - 6/12/2014 10:42:54
+
+
+    1547/    17C3 : FE 4A                	CPI 	(BUFFER & 0FFH)
+    1548/    17C5 : CA B1 17             	JZ 	GL2  		;nothing to delete
+    1549/    17C8 : 1A                   	LDAX 	D  		;delete
+    1550/    17C9 : 1B                   	DCX 	D
+    1551/    17CA : C3 AE 17             	JMP 	GL1
+    1552/    17CD : FE 0D               GL4: 	CPI 	CR  		;was it CR?
+    1553/    17CF : CA DD 17             	JZ 	GL5  		;yes, end of line
+    1554/    17D2 : 7B                   	MOV 	A, E  		;else, more free room?
+    1555/    17D3 :                     # 	CPI 	LOW BUFEND
+    1556/    17D3 : FE CE                	CPI 	(BUFEND & 0FFH)
+    1557/    17D5 : CA B1 17             	JZ 	GL2  		;no, wait for CR/Rub-Out
+    1558/    17D8 : 1A                   	LDAX 	D  		;yes, bump pointer
+    1559/    17D9 : 13                   	INX 	D
+    1560/    17DA : C3 AE 17             	JMP 	GL1
+    1561/    17DD : 13                  GL5: 	INX 	D  		;end of line
+    1562/    17DE : 13                   	INX 	D  		;bump pointer
+    1563/    17DF : 3E FF                	MVI 	A, 0FFH  	;put marker after it
+    1564/    17E1 : 12                   	STAX 	D
+    1565/    17E2 : 1B                   	DCX 	D
+    1566/    17E3 : C3 A3 17             	JMP 	CRLF
+    1567/    17E6 :                     ;-------------------------------
+    1568/    17E6 :                     ;I/O Routine for Emulator
+    1569/    17E6 :                     ;-------------------------------
+    1570/    17E6 :                     USEOUT:
+    1571/    17E6 : F5                  	push	psw
+    1572/    17E7 : FE 0D               	cpi	CR
+    1573/    17E9 : C2 F6 17            	jnz	USEOUT1
+    1574/    17EC : 3E 0A               	mvi	a, LF
+    1575/    17EE : D3 FF               	out	0FFH
+    1576/    17F0 : 3E 0D               	mvi	a, CR
+    1577/    17F2 : D3 FF               	out	0FFH
+    1578/    17F4 : F1                  	pop	psw
+    1579/    17F5 : C9                  	ret
+    1580/    17F6 :                     USEOUT1
+    1581/    17F6 : F1                  	pop	psw
+    1582/    17F7 : D3 FF               	out	0FFH
+    1583/    17F9 : C9                  	ret
+    1584/    17FA :                     ; 	CPI 	CR  		;was it CR?
+    1585/    17FA :                     ; 	RNZ   			;no, return
+    1586/    17FA :                     ; 	MVI 	A, LF  		;yes, give LF
+    1587/    17FA :                     ; 	CALL 	USEOUT
+    1588/    17FA :                     ; 	MVI 	A, CR
+    1589/    17FA :                     ; 	RET
+    1590/    17FA : C9                  	ret
+    1591/    17FB :                     
+    1592/    17FB :                     USEINP:
+    1593/    17FB : DB FE               	in	0FEH
+    1594/    17FD : 3C                  	inr	a
+    1595/    17FE : C8                  	rz
+    1596/    17FF : 3D                  	dcr	a
+    1597/    1800 : FE 71               	cpi	'q'
+    1598/    1802 : CA 0D 18            	jz	USEINP0
+    1599/    1805 : FE 0A               	cpi	LF
+    1600/    1807 : C0                  	rnz
+    1601/    1808 : 3E 0D               	mvi	a, CR
+    1602/    180A : 3D                  	dcr	a
+    1603/    180B : 3C                  	inr	a
+    1604/    180C : C9                  	ret
+    1605/    180D :                     USEINP0
+    1606/    180D : C3 00 10            	jmp	INIT
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 33 - 6/12/2014 10:42:54
+
+
+    1607/    1810 :                     
+    1608/    1810 :                     ;;-------------------------------
+    1609/    1810 :                     ;;I/O Routines using CP/M, Cf.
+    1610/    1810 :                     ;;"8080/Z80 Assembly Language"
+    1611/    1810 :                     ;;by Alan R. MILLER, SYBEX, 1981
+    1612/    1810 :                     ;;-------------------------------
+    1613/    1810 :                     ;;MILLER> (OUT4, p.92)
+    1614/    1810 :                     ;USEOUT:
+    1615/    1810 :                     ; 	push 	h  		;save registers
+    1616/    1810 :                     ; 	push 	d
+    1617/    1810 :                     ; 	push 	b
+    1618/    1810 :                     ; 	mov 	c, a  		;move byte
+    1619/    1810 :                     ; 	push 	psw
+    1620/    1810 :                     ; 	lxi 	h, out5  	;return address
+    1621/    1810 :                     ; 	push 	h  		;put on stack
+    1622/    1810 :                     ; 	lhld 	1  		;BIOS entry
+    1623/    1810 :                     ; 	lxi 	d, 9  		;offset to output
+    1624/    1810 :                     ; 	dad 	d  		;add together
+    1625/    1810 :                     ; 	pchl   			;call BIOS
+    1626/    1810 :                     ;out5: 	pop 	psw  		;restore registers
+    1627/    1810 :                     ; 	pop 	b
+    1628/    1810 :                     ; 	pop 	d
+    1629/    1810 :                     ; 	pop 	h
+    1630/    1810 :                     ;;-------------------------------
+    1631/    1810 :                     ;;PATB original code>
+    1632/    1810 :                     ; 	CPI 	CR  		;was it CR?
+    1633/    1810 :                     ; 	RNZ   			;no, return
+    1634/    1810 :                     ; 	MVI 	A, LF  		;yes, give LF
+    1635/    1810 :                     ; 	CALL 	USEOUT
+    1636/    1810 :                     ; 	MVI 	A, CR
+    1637/    1810 :                     ; 	RET
+    1638/    1810 :                     ;;-------------------------------
+    1639/    1810 :                     ;;MILLER> (INSTAT, p.92)
+    1640/    1810 :                     ;USEINP:
+    1641/    1810 :                     ; 	push 	h  		;save registers
+    1642/    1810 :                     ; 	push 	d
+    1643/    1810 :                     ; 	push 	b
+    1644/    1810 :                     ; 	lxi 	h, st5  		;return address
+    1645/    1810 :                     ; 	push 	h  		;put on stack
+    1646/    1810 :                     ; 	lhld 	1  		;BIOS entry
+    1647/    1810 :                     ; 	lxi 	d, 3  		;offset to status
+    1648/    1810 :                     ; 	dad 	d  		;add to addr
+    1649/    1810 :                     ; 	pchl   			;call BIOS
+    1650/    1810 :                     ;st5: 	pop 	b  		;restore registers
+    1651/    1810 :                     ; 	pop 	d
+    1652/    1810 :                     ; 	pop 	h
+    1653/    1810 :                     ; 	ora 	a
+    1654/    1810 :                     ;;-------------------------------
+    1655/    1810 :                     ;;PATB original code>
+    1656/    1810 :                     ; 	RZ   			;no input, return zero
+    1657/    1810 :                     ;;-------------------------------
+    1658/    1810 :                     ;;MILLER> (INPUT2, p.91)
+    1659/    1810 :                     ; 	push 	h  		;save registers
+    1660/    1810 :                     ; 	push 	d
+    1661/    1810 :                     ; 	push 	b
+    1662/    1810 :                     ; 	lxi 	h, in5  		;return address
+    1663/    1810 :                     ; 	push 	h  		;put on stack
+    1664/    1810 :                     ; 	lhld 	1  		;BIOS warm start
+    1665/    1810 :                     ; 	lxi 	d, 6  		;offset to input
+    1666/    1810 :                     ; 	dad 	d  		;add in
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 34 - 6/12/2014 10:42:54
+
+
+    1667/    1810 :                     ; 	pchl   			;call BIOS
+    1668/    1810 :                     ;in5: 	pop 	b  		;restore registers
+    1669/    1810 :                     ; 	pop 	d
+    1670/    1810 :                     ; 	pop 	h
+    1671/    1810 :                     ;;-------------------------------
+    1672/    1810 :                     ;;PATB original code>
+    1673/    1810 :                     ; 	ANI 	7FH
+    1674/    1810 :                     ; 	CPI 	3  		;is it Control-C?
+    1675/    1810 :                     ; 	RNZ   			;no, return char
+    1676/    1810 :                     ; 	JMP 	INIT  		;yes, restart
+    1677/    1810 :                     ;;-------------------------------
+    1678/    1810 :                     ;;ROCHE>
+    1679/    1810 :                     
+    1680/    1810 :                     ;
+    1681/    1810 :                     ; Define variables, buffer and stack in RAM
+    1682/    1810 :                     ;
+    1683/    2000 :                      	ORG 	BOTSCR
+    1684/    2000 :                     ;
+    1685/    2000 :                     KEYWRD 	DS 	1  		;was INIT done?
+    1686/    2001 :                     TXTLMT 	DS 	2  		;-> limit of text area
+    1687/    2003 :                     VARBGN 	DS 	2*26  		;TB variables A-Z
+    1688/    2037 :                     CURRNT 	DS 	2  		;points to current line
+    1689/    2039 :                     STKGOS 	DS 	2  		;saves SP in 'GOSUB'
+    1690/    203B : =203BH              VARNXT 	equ	$		;temporary storage
+    1691/    203B :                     STKINP 	DS 	2  		;saves SP in 'INPUT'
+    1692/    203D :                     LOPVAR 	DS 	2  		;'FOR' loop save area
+    1693/    203F :                     LOPINC 	DS 	2  		;increment
+    1694/    2041 :                     LOPLMT 	DS 	2  		;limit
+    1695/    2043 :                     LOPLN 	DS 	2  		;line number
+    1696/    2045 :                     LOPPT 	DS 	2  		;text pointer
+    1697/    2047 :                     RANPNT 	DS 	2  		;random number pointer
+    1698/    2049 :                      	DS 	1  		;extra byte for buffer
+    1699/    204A :                     BUFFER 	DS 	132  		;input buffer
+    1700/    20CE : =20CEH              BUFEND 	equ	$		;buffer end
+    1701/    20CE :                     	DS 	4  		;extra bytes for stack
+    1702/    20D2 : =20D2H              STKLMT 	equ	$		;soft limit for stack
+    1703/    20D2 :                     ;
+    1704/    2100 :                      	ORG 	TOPSCR
+    1705/    2100 :                     ;
+    1706/    2100 : =2100H              STACK 	equ	$		;stack starts here
+    1707/    2100 :                     ;
+    1708/    2100 :                      	ORG 	BOTRAM
+    1709/    2100 :                     ;
+    1710/    2100 :                     TXTUNF 	DS 	2  		;unfilled text save area
+    1711/    2102 :                     TEXT 	DS 	2  		;text save area
+    1712/    2104 :                     
+    1713/    2104 :                     	END
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 35 - 6/12/2014 10:42:54
+
+
+  symbol table (* = unused):
+  ------------------------
+
+ ABS :                         14A3 C |  AHOW :                        1605 C |
+*ARCHITECTURE : i386-unknown-freebsd - |
+ ASORRY :                      1569 C |  AWHAT :                       153C C |
+*BIGENDIAN :                      0 - |  BOTRAM :                      2100 - |
+ BOTROM :                      1000 - |  BOTSCR :                      2000 - |
+*BRANCHEXT :                      0 - |  BUFEND :                      20CE - |
+ BUFFER :                      204A C | *CASESENSITIVE :                  0 - |
+ CHGSGN :                      14D9 C |  CHKIO :                       17A8 C |
+ CHKSGN :                      14D6 C |  CK1 :                         14F4 C |
+ CKHLDE :                      14EE C |  COMP :                        14F8 C |
+*CONSTPI :        3.141592653589793 - |  CR :                             D - |
+ CRLF :                        17A3 C |  CURRNT :                      2037 C |
+*DATE :                   6/12/2014 - |  DEFLT :                       1352 C |
+ DFTLMT :                      2FFF - |  DIRECT :                      10D7 C |
+ DIVIDE :                      14B9 C |  DV1 :                         14C4 C |
+ DV2 :                         14C6 C |  ENDCHK :                      1535 C |
+ ERROR :                       153F C |  EX1 :                         10DE C |
+ EX2 :                         10F1 C |  EX3 :                         10FB C |
+ EX4 :                         10FD C |  EX5 :                         1102 C |
+ EXEC :                        10DA C |  EXPR :                        1366 C |
+ EXPR1 :                       13AE C |  EXPR2 :                       13EA C |
+ EXPR3 :                       144E C | *FALSE :                          0 - |
+ FI1 :                         1523 C |  FI2 :                         152C C |
+ FIN :                         151A C |  FINISH :                      1514 C |
+ FL1 :                         1589 C |  FNDLN :                       156F C |
+ FNDLP :                       1577 C |  FNDNXT :                      1588 C |
+ FNDSKP :                      158A C |  FOR :                         120D C |
+ FR1 :                         121D C |  FR2 :                         1229 C |
+ FR3 :                         122F C |  FR4 :                         1232 C |
+ FR5 :                         124C C |  FR6 :                         124D C |
+ FR7 :                         126D C | *FULLPMMU :                       1 - |
+ GETLN :                       17AB C |  GL1 :                         17AE C |
+ GL2 :                         17B1 C |  GL4 :                         17CD C |
+ GL5 :                         17DD C |  GOSUB :                       11D0 C |
+ GOTO :                        1135 C | *HAS64 :                          1 - |
+*HASDSP :                         0 - | *HASFPU :                         0 - |
+*HASPMMU :                        0 - |  HOW :                         1053 C |
+ IF1 :                         12DE C |  IFF :                         12DB C |
+ IGNBLK :                      152D C | *INEXTMODE :                      0 - |
+ INIT :                        1000 C | *INLWORDMODE :                    0 - |
+*INMAXMODE :                      0 - |  INPERR :                      12EC C |
+ INPUT :                       12F6 - | *INSRCMODE :                      0 - |
+*INSUPMODE :                      0 - |  IP1 :                         12F6 C |
+*IP10 :                        132C C |  IP11 :                        132F C |
+ IP12 :                        1337 C | *IP2 :                         12FD C |
+ IP3 :                         1303 C | *IP4 :                         1314 C |
+ IP5 :                         1319 C | *IP6 :                         131A C |
+ IP7 :                         1322 C |  IP8 :                         1325 C |
+ KEYWRD :                      2000 C | *L3 :                          17BC C |
+ LET :                         1358 - |  LF :                             A - |
+ LIST :                        1146 C | *LISTON :                         1 - |
+ LOCR :                        166A C |  LOPINC :                      203F C |
+ LOPLMT :                      2041 C |  LOPLN :                       2043 C |
+ LOPPT :                       2045 C |  LOPVAR :                      203D C |
+ LS1 :                         1155 C |  LS2 :                         115C C |
+*LT2 :                         1358 C | *LT3 :                         135B C |
+ LT4 :                         1363 C | *MACEXP :                         1 - |
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 36 - 6/12/2014 10:42:54
+
+
+ MD1 :                         161E C | *MOMCPU :                      8080 - |
+*MOMCPUNAME :                  8080 - |  MOREC :                       1767 C |
+ MOREF :                       177C C |  MSG :                         1030 C |
+ MVDOWN :                      1616 C |  MVUP :                        160B C |
+*NESTMAX :                      100 - |  NEW :                         110A C |
+ NEXT :                        1274 C |  NOTF :                        1454 C |
+ NX1 :                         127D C |  NX2 :                         1297 C |
+ NX3 :                         12A9 C |  NX4 :                         12B9 C |
+ NX5 :                         12CD C |  NX6 :                         12CF C |
+ OK :                          104A C |  OUTCH :                       17A5 C |
+*PACKING :                        0 - | *PADDING :                        1 - |
+ PARN :                        1465 C | *PARNP :                       146A C |
+*PN3 :                         16B9 C |  PN4 :                         16C4 C |
+ PN5 :                         16CB C |  PN6 :                         16DB C |
+ PN7 :                         16DC C |  PN8 :                         16EA C |
+ PN9 :                         16F0 C |  POPA :                        1625 C |
+ PP1 :                         163F C |  PR1 :                         1183 C |
+ PR2 :                         118E C | *PR3 :                         1193 C |
+ PR4 :                         11A1 C |  PR5 :                         11A7 C |
+ PR6 :                         11AC C |  PR7 :                         11B9 C |
+ PR8 :                         11BF C |  PR9 :                         11C5 C |
+ PRINT :                       1176 C |  PRTCHS :                      16AE C |
+ PRTLN :                       16FD C |  PRTNUM :                      16B9 - |
+ PRTSTG :                      1670 C |  PS1 :                         1671 C |
+ PS2 :                         1672 C |  PU1 :                         1667 C |
+ PURGE :                       101B C |  PUSHA :                       1641 C |
+ QHOW :                        1604 C |  QSORRY :                      1568 C |
+ QT1 :                         1686 C |  QT2 :                         1689 C |
+ QT3 :                         1693 C |  QT4 :                         169D C |
+ QT5 :                         16AD C |  QTSTG :                       167F C |
+ QWHAT :                       153B C |  RA1 :                         1493 C |
+ RANEND :                      17A3 - |  RANPNT :                      2047 C |
+*RELAXED :                        0 - |  REM :                         12D5 C |
+*RESTOR :                      11FE C |  RETURN :                      11F2 C |
+ RND :                         1476 C |  RSTART :                      105E C |
+ RUN :                         1116 C |  RUNNXL :                      111C C |
+ RUNSML :                      112C C |  RUNTSL :                      1125 C |
+ SETVAL :                      14FE C |  SID :                         102F C |
+ SIZE :                        14AC C |  SORRY :                       1058 C |
+ ST1 :                         1067 C |  ST2 :                         1076 C |
+ ST3 :                         10AD C |  STACK :                       2100 - |
+ STKGOS :                      2039 C |  STKINP :                      203B C |
+ STKLMT :                      20D2 - |  STOP :                        1110 C |
+ SUBDE :                       14CF C |  SV1 :                         1517 C |
+ TAB1 :                        170E C |  TAB2 :                        1723 C |
+ TAB3 :                        176A C |  TAB4 :                        177F C |
+ TAB5 :                        1785 C |  TAB6 :                        178D C |
+ TC1 :                         15D6 C |  TELL :                        1026 C |
+ TEXT :                        2102 C | *TIME :                    10:42:54 - |
+ TN1 :                         15E1 C |  TOPSCR :                      2100 - |
+*TRUE :                           1 - | *TSTB :                        15A5 C |
+ TSTCH :                       15C6 C |  TSTNUM :                      15DA C |
+ TSTV :                        1594 C |  TV1 :                         15B6 C |
+ TXTLMT :                      2001 C |  TXTUNF :                      2100 C |
+ USEINP :                      17FB C |  USEINP0 :                     180D C |
+ USEOUT :                      17E6 C |  USEOUT1 :                     17F6 C |
+ VARBGN :                      2003 C |  VARNXT :                      203B - |
+*VERSION :                     142F - |  WHAT :                        104D C |
+ XP11 :                        13B9 C |  XP12 :                        13BE C |
+ XP13 :                        13C1 C |  XP14 :                        13CA C |
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 37 - 6/12/2014 10:42:54
+
+
+ XP15 :                        13DB C |  XP16 :                        13E0 C |
+ XP21 :                        13ED C |  XP22 :                        140C C |
+ XP23 :                        1414 C |  XP24 :                        141F C |
+ XP25 :                        1440 C |  XP32 :                        145F C |
+ XPR0 :                        1473 C |  XPR1 :                        1370 C |
+ XPR2 :                        1376 C |  XPR3 :                        137C C |
+ XPR4 :                        1383 C |  XPR5 :                        138B C |
+ XPR6 :                        1391 C |  XPR7 :                        1397 C |
+ XPR8 :                        1399 C |  XPR9 :                        1472 C |
+
+    251 symbols
+     40 unused symbols
+
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 38 - 6/12/2014 10:42:54
+
+
+  defined macros:
+  ---------------
+
+ITEM                                  | TSTC                                 
+
+      2 macros
+
+ AS V1.42 Beta [Bld 32] - source file pcwpatb.asm - page 39 - 6/12/2014 10:42:54
+
+
+  codepages:
+  ----------
+
+STANDARD (0 changed characters)
+
+
+0.07 seconds assembly time
+
+   1714 lines source file
+   2028 lines incl. macro expansions
+      2 passes
+      0 errors
+      0 warnings
